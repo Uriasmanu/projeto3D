@@ -1,0 +1,71 @@
+:root {
+  /* Verde */
+  --green-50: #E6F3EC;
+  --green-100: #BFE0D0;
+  --green-300: #80C1A1;
+  --green-500: #40A171;
+  --green-600: #008242; /* primária */
+  --green-700: #006F38;
+  --green-800: #005B2E;
+
+  /* Coral */
+  --coral-50: #FDEBE6;
+  --coral-100: #FBCABC;
+  --coral-300: #F7A289;
+  --coral-500: #F47A57; /* destaque */
+  --coral-700: #CF684A;
+  --coral-800: #AB553D;
+
+  /* Neutros */
+  --white: #FFFFFF;
+  --gray-50: #F2F2F2;
+  --gray-100: #D9D9D9;
+  --gray-300: #B3B3B3;
+  --gray-500: #8C8C8C;
+  --gray-600: #666666;
+  --gray-800: #3D3D3D;
+  --gray-900: #1F1F1F;
+  --black: #000000;
+
+  /* Tokens semânticos */
+  --color-bg-default: var(--white);
+  --color-bg-canvas: var(--gray-50);
+  --color-text-primary: var(--gray-800);
+  --color-text-secondary: var(--gray-600);
+  --color-border: var(--gray-100);
+  --color-action-primary: var(--green-600);
+  --color-action-primary-hover: var(--green-700);
+  --color-accent: var(--coral-500);
+  --color-accent-hover: var(--coral-700);
+
+  /* Tipografia */
+  --font-family-base: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --text-h1-size: 32px;
+  --text-h2-size: 24px;
+  --text-h3-size: 18px;
+  --text-body-size: 16px;
+  --text-small-size: 14px;
+  --text-caption-size: 12px;
+  --text-button-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-default);
+  overflow: hidden;
+}
