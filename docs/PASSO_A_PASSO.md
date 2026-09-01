@@ -1,6 +1,7 @@
 # Passo a Passo: Visualizador 3D de Transformador Elétrico
 
-> Roteiro de execução baseado em [spec..md](./spec..md). Marque cada item conforme for concluído.
+> Roteiro de execução baseado em [spec.md](./spec.md) e [requisitos.md](./requisitos.md)
+> (paleta de cores e tipografia). Marque cada item conforme for concluído.
 
 ## 0. Pré-requisitos
 
@@ -27,6 +28,7 @@
   transformador-3d/
   ├── public/index.html
   ├── src/assets/models/transformador.glb
+  ├── src/assets/styles/tokens.css
   ├── src/components/Viewer3D.vue
   ├── src/App.vue
   ├── src/main.js
@@ -66,14 +68,34 @@
   - [ ] Listener de `resize` da janela ajustando `camera.aspect`, `camera.updateProjectionMatrix()` e `renderer.setSize()`.
   - [ ] Limpeza no `beforeDestroy`/`unmounted` (remover listeners, dispose de geometria/materiais/renderer) para evitar memory leaks.
 
-## 5. Integrar no app
+## 5. Aplicar identidade visual (paleta e tipografia)
+
+- [ ] Criar `src/assets/styles/tokens.css` com as variáveis CSS definidas em
+  [requisitos.md](./requisitos.md#3-aplicação-de-exemplo-tokens-css) (cores verde/coral/
+  cinza e `--font-family-base`).
+- [ ] Adicionar no `public/index.html` o link do Google Fonts para a fonte **Inter**
+  (ou incluir os arquivos da fonte em `public/fonts/` para self-host, se exigido
+  offline):
+  ```html
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  ```
+- [ ] Importar `tokens.css` globalmente (em `src/main.js` ou `App.vue`).
+- [ ] Aplicar `var(--font-family-base)` como `font-family` padrão do `body`/`#app`.
+- [ ] Estilizar o header/título da aplicação e eventuais botões de controle usando
+  os tokens semânticos (`--color-action-primary`, `--color-text-primary` etc.),
+  evitando cores/fontes soltas fora da paleta.
+- [ ] Conferir contraste de texto sobre os fundos usados (ver regras de acessibilidade
+  na seção 1.6 de requisitos.md — coral não deve ser usado como cor de texto corrido).
+
+## 6. Integrar no app
 
 - [ ] Importar e usar `<Viewer3D />` em `src/App.vue`.
 - [ ] Garantir no `main.js` que o Vue está inicializado corretamente (`new Vue({ render: h => h(App) }).$mount('#app')`).
 - [ ] Ajustar `public/index.html` (título da página, meta viewport para responsividade).
 - [ ] Ajustar CSS global para o canvas/container ocupar `100vw`/`100vh` sem overflow.
 
-## 6. Rodar e testar localmente
+## 7. Rodar e testar localmente
 
 - [ ] Rodar em modo desenvolvimento:
   ```bash
@@ -85,19 +107,21 @@
   - [ ] Zoom com scroll funciona.
   - [ ] Pan com botão direito (ou dois dedos no touch) funciona.
   - [ ] Redimensionar a janela do navegador ajusta a cena corretamente.
+  - [ ] A fonte Inter carrega corretamente (verificar aba Network/Fonts do DevTools).
+  - [ ] As cores da UI batem com os tokens de requisitos.md (sem cores hardcoded fora da paleta).
 - [ ] Testar em pelo menos dois navegadores (ex.: Chrome e Firefox/Edge).
 - [ ] Testar em um dispositivo touch (tablet/celular ou emulação no DevTools), se for requisito.
 
-## 7. Build de produção
+## 8. Build de produção
 
 - [ ] Gerar build:
   ```bash
   npm run build
   ```
 - [ ] Validar que a pasta `dist/` é gerada sem erros/warnings críticos.
-- [ ] Servir o build localmente (ex.: `npx serve dist`) e repetir os testes da seção 6.
+- [ ] Servir o build localmente (ex.: `npx serve dist`) e repetir os testes da seção 7.
 
-## 8. Documentação
+## 9. Documentação
 
 - [ ] Preencher `README.md` com:
   - [ ] Descrição do projeto.
@@ -105,16 +129,19 @@
   - [ ] Comandos de instalação, desenvolvimento e build.
   - [ ] Instruções de uso (controles de mouse/touch).
   - [ ] Origem/licença do modelo 3D utilizado.
+  - [ ] Referência à paleta/tipografia definidas em requisitos.md.
 
-## 9. Checklist final (Critérios de Aceite da spec)
+## 10. Checklist final (Critérios de Aceite da spec)
 
 - [ ] Projeto inicia sem erros com `npm run serve` usando Node 14.
 - [ ] Modelo 3D do transformador é carregado e exibido corretamente na tela.
 - [ ] É possível rotacionar, dar zoom e fazer pan no modelo via mouse/touch.
 - [ ] A cena se redimensiona corretamente ao alterar o tamanho da janela do navegador.
 - [ ] Nenhum erro é exibido no console do navegador durante o uso normal.
+- [ ] A UI usa exclusivamente as cores/tokens definidos em requisitos.md.
+- [ ] A fonte Inter é carregada e aplicada em todos os textos da interface.
 
-## 10. Próximos passos (opcional, fora do escopo atual)
+## 11. Próximos passos (opcional, fora do escopo atual)
 
 - [ ] Adicionar labels/hotspots interativos nas partes do transformador (educacional).
 - [ ] Adicionar modo de apresentação (auto-rotação, tour guiado).
