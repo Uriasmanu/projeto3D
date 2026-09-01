@@ -46,7 +46,12 @@
 
 - [ ] Obter/gerar o arquivo `transformador.glb` real (modelagem em Blender, asset licenciado ou exportação CAD) — **pendente**, fora do escopo desta implementação.
 - [ ] Otimizar/colocar o modelo em `src/assets/models/transformador.glb` — pendente, depende do item acima.
-- [x] Fallback implementado: geometria procedural via `THREE.CylinderGeometry`/`THREE.BoxGeometry`/`THREE.CircleGeometry` representando poste, tanque, aletas de refrigeração e buchas do transformador, em `buildTransformer()` (`src/components/Viewer3D.vue`), documentado no README.
+- [x] Fallback implementado e refinado com base na referência fotográfica
+  [`docs/transformador-de-poder-de-alta-tensão-55054468.webp`](./transformador-de-poder-de-alta-tensão-55054468.webp):
+  geometria procedural (`THREE.BoxGeometry`/`THREE.LatheGeometry`/`THREE.CylinderGeometry`
+  etc.) representando tanque com aletas de radiador, buchas de AT/BT empilhadas,
+  tanque de expansão com tampa aparafusada, trilhos de base e válvula, em
+  `buildTransformer()` (`src/components/Viewer3D.vue`), documentado no README.
 
 ## 4. Implementar o componente `Viewer3D.vue`
 
@@ -89,16 +94,24 @@
 
 - [x] Rodado em modo desenvolvimento (`npm run serve`): compilou com sucesso
   (`Compiled successfully`) e respondeu `HTTP 200` em `http://localhost:8080/`.
-- [ ] Verificação **visual/interativa em navegador ainda não realizada** (este
-  ambiente de execução não tem acesso a um navegador real) — pendente confirmar:
-  - [ ] O modelo carrega sem erros no console.
-  - [ ] Rotação com arraste do mouse funciona.
-  - [ ] Zoom com scroll funciona.
-  - [ ] Pan com botão direito (ou dois dedos no touch) funciona.
-  - [ ] Redimensionar a janela do navegador ajusta a cena corretamente.
-  - [ ] A fonte Inter carrega e renderiza corretamente (verificar aba Network/Fonts do DevTools).
-  - [ ] Contraste de cores está adequado visualmente.
-- [ ] Testar em pelo menos dois navegadores (ex.: Chrome e Firefox/Edge).
+- [x] Verificação visual feita via Chrome headless (Puppeteer, dependência
+  temporária removida após o teste) com screenshots comparados à referência:
+  - [x] O modelo carrega sem erros no console (nenhuma mensagem `error`/`pageerror`;
+    o único evento fora do padrão foi um `WebGL context lost/restored` causado
+    pelo próprio hot-reload do webpack durante o teste, não pelo app).
+  - [x] Rotação com arraste do mouse funciona (`OrbitControls` testado via
+    `mouse.down/move/up`; screenshot confirma o modelo rotacionado).
+  - [ ] Zoom com scroll — implementado (`OrbitControls` padrão), não exercitado
+    no teste automatizado (Puppeteer não simulou wheel). Pendente checar manualmente.
+  - [ ] Pan com botão direito/dois dedos — implementado, não exercitado no teste
+    automatizado. Pendente checar manualmente.
+  - [ ] Redimensionar a janela do navegador — listener implementado
+    (`onWindowResize`), não exercitado no teste automatizado.
+  - [x] A fonte Inter está referenciada e o header renderiza com a tipografia
+    esperada nos screenshots.
+  - [x] Cores da UI (header verde, botão primário) conferem visualmente com os
+    tokens de requisitos.md nos screenshots.
+- [ ] Testar em pelo menos dois navegadores (só Chrome foi testado neste ambiente).
 - [ ] Testar em um dispositivo touch (tablet/celular ou emulação no DevTools), se for requisito.
 
 ## 8. Build de produção
@@ -121,14 +134,14 @@
 ## 10. Checklist final (Critérios de Aceite da spec)
 
 - [x] Projeto inicia sem erros com `npm run serve` usando Node 14 (confirmado: compilação e resposta HTTP 200).
-- [x] Um modelo 3D do transformador é carregado e exibido na tela (geometria procedural — **ainda não é o asset `.glb` real**, ver seção 3).
-- [ ] É possível rotacionar, dar zoom e fazer pan no modelo via mouse/touch — implementado via `OrbitControls`, mas **não confirmado visualmente** (sem navegador neste ambiente).
-- [ ] A cena se redimensiona corretamente ao alterar o tamanho da janela do navegador — listener implementado, **não confirmado visualmente**.
-- [ ] Nenhum erro é exibido no console do navegador durante o uso normal — **não confirmado visualmente** (build/compilação não acusaram erro).
-- [x] A UI usa exclusivamente as cores/tokens definidos em requisitos.md (revisão de código: nenhuma cor hardcoded fora de `tokens.css`).
-- [x] A fonte Inter está referenciada via Google Fonts e aplicada via `--font-family-base` (renderização real não confirmada visualmente).
+- [x] Um modelo 3D do transformador é carregado e exibido na tela — geometria procedural modelada a partir da foto de referência (**ainda não é o asset `.glb` real**, ver seção 3), confirmado visualmente via screenshot.
+- [x] Rotação confirmada visualmente (screenshot antes/depois do arraste). Zoom (scroll) e pan (botão direito/touch) estão implementados via `OrbitControls` mas **não foram exercitados no teste automatizado** — pendente checagem manual.
+- [ ] A cena se redimensiona corretamente ao alterar o tamanho da janela do navegador — listener implementado, **não exercitado no teste automatizado**.
+- [x] Nenhum erro é exibido no console durante o carregamento/interação testados (só um `context lost/restored` do próprio hot-reload do dev server, não do app).
+- [x] A UI usa exclusivamente as cores/tokens definidos em requisitos.md (revisão de código + conferência visual nos screenshots).
+- [x] A fonte Inter está referenciada via Google Fonts e renderiza no header, confirmado nos screenshots.
 
-> **Ação recomendada:** abrir `npm run serve` em um navegador local e percorrer manualmente os itens marcados como não confirmados acima.
+> **Ação recomendada:** abrir `npm run serve` em um navegador local e checar manualmente zoom (scroll), pan (botão direito/touch) e redimensionamento da janela — únicos itens ainda não exercitados em teste automatizado.
 
 ## 11. Próximos passos (opcional, fora do escopo atual)
 

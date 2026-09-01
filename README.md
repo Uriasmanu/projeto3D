@@ -39,10 +39,14 @@ npm run build
 
 Ainda não há um asset `.glb`/`.gltf` do transformador. Enquanto isso, o componente
 [`Viewer3D.vue`](./src/components/Viewer3D.vue) renderiza uma geometria procedural
-construída com primitivas do Three.js (poste, tanque, aletas de refrigeração e
-buchas), representando um transformador de poste. Ao obter um modelo `.glb` real,
-substitua essa geometria por um carregamento via `GLTFLoader` a partir de
-`src/assets/models/transformador.glb`.
+construída com primitivas do Three.js, modelada com base na referência
+[`docs/transformador-de-poder-de-alta-tensão-55054468.webp`](./docs/transformador-de-poder-de-alta-tensão-55054468.webp):
+tanque retangular com aletas de radiador corrugadas, tampa aparafusada, duas
+fileiras de buchas de porcelana (3 de alta tensão à frente + 3 de baixa tensão
+atrás, com conectores entre pares), tanque de expansão/conservador cilíndrico
+com tampa aparafusada montado sobre um suporte, trilhos de base e válvula de
+dreno. Ao obter um modelo `.glb` real, substitua essa geometria por um
+carregamento via `GLTFLoader` a partir de `src/assets/models/transformador.glb`.
 
 ## Identidade visual
 
