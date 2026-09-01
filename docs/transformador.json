@@ -1,0 +1,104 @@
+{
+  "tipo_equipamento": "transformador de potência de alta tensão",
+  "descricao_geral": "Render 3D isolado em fundo branco de um transformador de potência trifásico, com buchas de porcelana no topo, radiadores laterais e um comutador/tanque cilíndrico acoplado.",
+  "estrutura_fisica": {
+    "formato": "corpo principal retangular/prismático com um compartimento cilíndrico acoplado na lateral superior direita",
+    "cor_predominante": "cinza claro / prata metálico",
+    "material_aparente": "metal pintado (aço), com aparência de alumínio fosco nos radiadores e porcelana escura nas buchas",
+    "estado_conservacao": "novo, sem sinais de ferrugem, sujeira ou vazamento de óleo",
+    "dimensoes_relativas": "largura aproximadamente 1.5x a altura do tanque principal; o cilindro superior direito tem diâmetro equivalente a cerca de 1/3 da altura total do equipamento"
+  },
+  "componentes_visiveis": [
+    {
+      "nome": "buchas/isoladores de porcelana",
+      "posicao": "topo do tanque, alinhadas em duas fileiras (uma de três buchas altas ao fundo e outra de quatro buchas menores à frente)",
+      "cor": "marrom escuro/preto com aletas em degraus, terminais metálicos prateados no topo",
+      "quantidade": "3 buchas altas + 4 buchas menores (total 7)",
+      "detalhes": "formato cônico escalonado típico de isoladores de porcelana, com terminal metálico tipo garfo/conector no topo de cada uma"
+    },
+    {
+      "nome": "radiadores de refrigeração",
+      "posicao": "laterais do tanque (frontal, lateral esquerda e traseira)",
+      "cor": "cinza metálico",
+      "quantidade": "múltiplas aletas verticais paralelas cobrindo praticamente toda a face lateral",
+      "detalhes": "aletas finas e uniformemente espaçadas, dando efeito de sanfona/persiana vertical"
+    },
+    {
+      "nome": "tanque/compartimento cilíndrico (possível comutador de derivação em carga ou compartimento de acessórios)",
+      "posicao": "canto superior direito, acoplado ao corpo principal por uma estrutura de suporte metálica",
+      "cor": "cinza claro",
+      "quantidade": "1",
+      "detalhes": "formato cilíndrico horizontal com tampa circular aparafusada visível na extremidade (parafusos dispostos em círculo) e uma alça/trava retangular no centro da tampa"
+    },
+    {
+      "nome": "conectores/terminais em cruz",
+      "posicao": "entre as buchas altas e as buchas menores, no topo do tanque",
+      "cor": "cinza metálico",
+      "quantidade": "3",
+      "detalhes": "peças em formato de cruz ou flange, aparentam ser conexões de barramento entre buchas"
+    },
+    {
+      "nome": "tubulação/conduíte curvo",
+      "posicao": "próximo à base do compartimento cilíndrico, lado direito",
+      "cor": "cinza",
+      "quantidade": "1",
+      "detalhes": "tubo curvado conectando o compartimento cilíndrico ao corpo do tanque"
+    },
+    {
+      "nome": "placa de identificação (genérica/retangular)",
+      "posicao": "face frontal do tanque, entre os radiadores, próximo ao centro",
+      "cor": "cinza claro, mais lisa que a superfície ao redor",
+      "quantidade": "1",
+      "detalhes": "área retangular lisa sem texto legível visível"
+    },
+    {
+      "nome": "placa de aviso de alta tensão",
+      "posicao": "parte inferior frontal do tanque, próxima à válvula",
+      "cor": "amarelo e preto (símbolo de raio) e branco/vermelho (texto)",
+      "quantidade": "2 placas adesivas",
+      "detalhes": "uma placa com símbolo de raio amarelo triangular e outra com texto de advertência"
+    },
+    {
+      "nome": "válvula/registro",
+      "posicao": "canto inferior esquerdo frontal do tanque",
+      "cor": "vermelho com corpo metálico",
+      "quantidade": "1",
+      "detalhes": "válvula circular tipo volante de cor vermelha, provavelmente para dreno de óleo"
+    },
+    {
+      "nome": "base/pés de apoio",
+      "posicao": "parte inferior do equipamento",
+      "cor": "cinza metálico",
+      "quantidade": "2 ou mais suportes visíveis",
+      "detalhes": "estrutura em formato de trilho/skid para transporte e fixação do transformador"
+    },
+    {
+      "nome": "tampa superior plana",
+      "posicao": "topo do tanque, onde estão fixadas as buchas",
+      "cor": "cinza claro",
+      "quantidade": "1",
+      "detalhes": "superfície plana aparafusada nas bordas (parafusos visíveis ao longo do perímetro)"
+    }
+  ],
+  "placa_identificacao": {
+    "presente": true,
+    "texto_legivel": "não identificado (placa sem texto legível na resolução da imagem; há um adesivo com texto de advertência genérico sobre alta tensão)",
+    "posicao": "face frontal do tanque, área central lisa"
+  },
+  "ambiente_e_contexto": {
+    "localizacao": "não identificado (imagem de estúdio/render isolado, não mostra ambiente real)",
+    "fundo": "fundo totalmente branco/liso, sem elementos de cenário",
+    "iluminacao": "iluminação de estúdio uniforme e suave, sem sombras fortes, com leve sombra de contato sob o equipamento",
+    "elementos_adicionais": "nenhum elemento adicional além de uma marca d'água semi-transparente de banco de imagens sobreposta na parte central da foto"
+  },
+  "angulo_e_enquadramento": {
+    "angulo_camera": "três quartos, ligeiramente elevado, mostrando frente, lateral direita e topo do equipamento",
+    "distancia": "plano médio, enquadrando o equipamento inteiro",
+    "foco": "todo o transformador está em foco nítido, sem profundidade de campo aparente"
+  },
+  "estilo_visual": {
+    "tipo_imagem": "render 3D fotorrealista",
+    "qualidade": "alta resolução, superfícies lisas e bem definidas, típico de render CGI comercial/stock image"
+  },
+  "observacoes_adicionais": "A imagem contém uma marca d'água de banco de imagens ('dreamstime') sobreposta, indicando que é um conteúdo de stock; não há textos técnicos (voltagem, potência, fabricante) legíveis na imagem."
+}
