@@ -21,8 +21,15 @@ export default {
       renderer: null,
       controls: null,
       animationId: null,
-      initialCameraPosition: new THREE.Vector3(5.5, 3.6, 6.5),
+      initialCameraPosition: new THREE.Vector3(4.7, 3.1, 5.6),
       cameraTarget: new THREE.Vector3(0, TANK_CENTER_Y + 0.4, 0),
+      // registro das peças: { id, object, anchor } — usado para projetar a
+      // posição de cada peça na tela e ligar os cards por linhas de chamada
+      parts: [],
+      canvasRect: null,
+      lastAnchors: '',
+      highlightMaterials: new Map(),
+      highlightedId: null,
     }
   },
   mounted() {
@@ -36,6 +43,9 @@ export default {
     cancelAnimationFrame(this.animationId)
 
     this.controls.dispose()
+    this.clearHighlight()
+    this.highlightMaterials.forEach((material) => material.dispose())
+    this.highlightMaterials.clear()
     this.scene.traverse((object) => {
       if (object.geometry) object.geometry.dispose()
       if (object.material) {
@@ -105,14 +115,31 @@ export default {
       const porcelainMaterial = new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.55 })
       const terminalMaterial = new THREE.MeshStandardMaterial({ color: 0xcfd3d6, metalness: 0.8, roughness: 0.25 })
 
-      group.add(this.buildBaseRails(darkMetalMaterial))
-      group.add(this.buildTankBody(bodyMaterial))
-      group.add(this.buildRadiatorFins(finMaterial))
-      group.add(this.buildTopLid(bodyMaterial, darkMetalMaterial))
-      group.add(this.buildBushingArray(porcelainMaterial, terminalMaterial, darkMetalMaterial))
-      group.add(this.buildConservatorAssembly(bodyMaterial, darkMetalMaterial))
-      group.add(this.buildValve(darkMetalMaterial))
-      group.add(this.buildWarningSign())
+      /*
+       * O ponto de chamada de cada peça é o centro da sua caixa envolvente. Em
+       * peças grandes e concêntricas (tanque, radiadores e tampa compartilham
+       * praticamente o mesmo centro) esse ponto é deslocado para uma região
+       * característica da peça, senão os marcadores se sobrepõem na tela.
+       */
+      const register = (id, object, offset) => {
+        object.name = id
+        group.add(object)
+        this.parts.push({ id, object, offset: offset || null, anchor: new THREE.Vector3() })
+      }
+
+      register('base', this.buildBaseRails(darkMetalMaterial))
+      register('tanque', this.buildTankBody(bodyMaterial),
+        new THREE.Vector3(TANK_WIDTH * 0.3, -TANK_HEIGHT * 0.15, TANK_DEPTH * 0.5))
+      register('radiadores', this.buildRadiatorFins(finMaterial),
+        new THREE.Vector3(-TANK_WIDTH * 0.42, 0, TANK_DEPTH * 0.35))
+      register('tampa', this.buildTopLid(bodyMaterial, darkMetalMaterial),
+        new THREE.Vector3(TANK_WIDTH * 0.3, 0, -TANK_DEPTH * 0.25))
+      register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial, darkMetalMaterial),
+        new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
+      register('conservador', this.buildConservatorAssembly(bodyMaterial, darkMetalMaterial),
+        new THREE.Vector3(0, TANK_HEIGHT * 0.3, 0))
+      register('valvula', this.buildValve(darkMetalMaterial))
+      register('aviso', this.buildWarningSign())
 
       const ground = new THREE.Mesh(
         new THREE.CircleGeometry(50, 32),
@@ -122,6 +149,15 @@ export default {
       group.add(ground)
 
       this.scene.add(group)
+
+      // as matrizes precisam estar atualizadas antes de medir a caixa de cada peça
+      this.scene.updateMatrixWorld(true)
+      const box = new THREE.Box3()
+      this.parts.forEach((part) => {
+        box.setFromObject(part.object)
+        box.getCenter(part.anchor)
+        if (part.offset) part.anchor.add(part.offset)
+      })
     },
 
     buildBaseRails(material) {
@@ -339,6 +375,75 @@ export default {
       this.animationId = requestAnimationFrame(this.animate)
       this.controls.update()
       this.renderer.render(this.scene, this.camera)
+      this.emitAnchors()
+    },
+
+    /**
+     * Projeta o centro de cada peça para coordenadas de tela (relativas à
+     * viewport) e avisa o pai, que usa esses pontos como destino das linhas de
+     * chamada dos cards. Só emite quando algo muda de fato, para não forçar
+     * re-render do SVG a 60fps com a cena parada.
+     */
+    emitAnchors() {
+      if (!this.parts.length) return
+      if (!this.canvasRect) this.canvasRect = this.$refs.container.getBoundingClientRect()
+
+      const rect = this.canvasRect
+      const projected = new THREE.Vector3()
+      const anchors = this.parts.map((part) => {
+        projected.copy(part.anchor).project(this.camera)
+        return {
+          id: part.id,
+          x: Math.round((projected.x * 0.5 + 0.5) * rect.width + rect.left),
+          y: Math.round((-projected.y * 0.5 + 0.5) * rect.height + rect.top),
+          visible: projected.z < 1,
+        }
+      })
+
+      const signature = JSON.stringify(anchors)
+      if (signature === this.lastAnchors) return
+      this.lastAnchors = signature
+      this.$emit('anchors', anchors)
+    },
+
+    /** Realça uma peça tingindo os materiais dela com a cor de destaque. */
+    highlightPart(id) {
+      if (this.highlightedId === id) return
+      this.clearHighlight()
+      const part = this.parts.find((item) => item.id === id)
+      if (!part) return
+
+      part.object.traverse((object) => {
+        if (!object.isMesh) return
+        object.userData.baseMaterial = object.material
+        object.material = this.getHighlightMaterial(object.material)
+      })
+      this.highlightedId = id
+    },
+
+    clearHighlight() {
+      if (!this.highlightedId) return
+      const part = this.parts.find((item) => item.id === this.highlightedId)
+      if (part) {
+        part.object.traverse((object) => {
+          if (object.userData.baseMaterial) {
+            object.material = object.userData.baseMaterial
+            delete object.userData.baseMaterial
+          }
+        })
+      }
+      this.highlightedId = null
+    },
+
+    /** Clone do material original com emissivo coral (--color-accent). */
+    getHighlightMaterial(baseMaterial) {
+      if (!this.highlightMaterials.has(baseMaterial)) {
+        const highlighted = baseMaterial.clone()
+        highlighted.emissive = new THREE.Color(0xf47a57)
+        highlighted.emissiveIntensity = 0.38
+        this.highlightMaterials.set(baseMaterial, highlighted)
+      }
+      return this.highlightMaterials.get(baseMaterial)
     },
 
     onWindowResize() {
@@ -346,6 +451,8 @@ export default {
       this.camera.aspect = container.clientWidth / container.clientHeight
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(container.clientWidth, container.clientHeight)
+      this.canvasRect = container.getBoundingClientRect()
+      this.lastAnchors = ''
     },
 
     resetCamera() {

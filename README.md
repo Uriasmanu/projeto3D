@@ -34,6 +34,12 @@ npm run build
 - **Zoom:** scroll do mouse (ou pinça no touch).
 - **Pan:** clique e arraste com o botão direito do mouse (ou dois dedos no touch).
 - **Resetar câmera:** botão no header da página.
+- **Cards das peças:** o transformador fica no centro do dashboard e cada peça tem
+  um card lateral ligado a ela por uma linha de chamada numerada, que acompanha o
+  modelo enquanto a câmera gira. Passar o mouse (ou dar foco pelo teclado) em um
+  card realça a peça correspondente no 3D com a cor de destaque. As peças e seus
+  textos ficam em [`src/models/parts.js`](./src/models/parts.js); em telas com
+  menos de 1080px os cards empilham abaixo do modelo e as linhas são omitidas.
 
 ## Modelo 3D
 
