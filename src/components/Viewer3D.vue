@@ -209,6 +209,18 @@ export default {
       const finDepth = 0.22
       const finThickness = 0.035
 
+      /*
+       * Barras coletoras: uma no topo e outra na base de cada fileira, ligando
+       * a ponta de fora de todas as aletas daquela face. Ficam so na aresta
+       * externa (headerSize de secao, recuadas meia secao para nao passar da
+       * ponta), entao os vaos entre as aletas continuam vazados.
+       */
+      const headerSize = 0.022
+      const headerYs = [
+        finY - finHeight / 2 + headerSize / 2,
+        finY + finHeight / 2 - headerSize / 2,
+      ]
+
       // faces longas (frente e fundo): o sinal de `face` espelha o Z
       const frontCount = 16
       const frontGeometry = new THREE.BoxGeometry(finThickness, finHeight, finDepth)
@@ -223,6 +235,23 @@ export default {
           )
           group.add(fin)
         }
+
+        const firstX = -TANK_WIDTH / 2 + 0.3
+        const lastX = firstX + (frontCount - 1) * frontSpacing
+        const frontHeaderGeometry = new THREE.BoxGeometry(
+          lastX - firstX + finThickness,
+          headerSize,
+          headerSize
+        )
+        headerYs.forEach((y) => {
+          const header = new THREE.Mesh(frontHeaderGeometry, material)
+          header.position.set(
+            (firstX + lastX) / 2,
+            y,
+            face * (TANK_DEPTH / 2 + finDepth - headerSize / 2)
+          )
+          group.add(header)
+        })
       })
 
       // faces curtas (esquerda e direita): o sinal de `face` espelha o X
@@ -239,6 +268,23 @@ export default {
           )
           group.add(fin)
         }
+
+        const firstZ = -TANK_DEPTH / 2 + 0.15
+        const lastZ = firstZ + (sideCount - 1) * sideSpacing
+        const sideHeaderGeometry = new THREE.BoxGeometry(
+          headerSize,
+          headerSize,
+          lastZ - firstZ + finThickness
+        )
+        headerYs.forEach((y) => {
+          const header = new THREE.Mesh(sideHeaderGeometry, material)
+          header.position.set(
+            face * (TANK_WIDTH / 2 + finDepth - headerSize / 2),
+            y,
+            (firstZ + lastZ) / 2
+          )
+          group.add(header)
+        })
       })
 
       return group
