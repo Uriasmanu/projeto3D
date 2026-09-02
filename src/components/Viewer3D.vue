@@ -338,7 +338,17 @@ export default {
       seam.position.set(0, 0, radius * 0.97)
       conservator.add(seam)
 
-      conservator.rotation.z = -Math.PI / 2
+      /*
+       * >>> ROTAÇÃO DO CONSERVADOR DE ÓLEO <<<
+       * O cilindro nasce em pé (CylinderGeometry cresce no eixo Y). Girar -90°
+       * em Z deita o grupo inteiro (corpo, tampa, parafusos e costura) sobre o
+       * eixo X, que é como o conservador aparece na referência.
+       * Para mudar a orientação, altere a linha abaixo:
+       *   rotation.z = -Math.PI / 2  -> deitado no eixo X (atual)
+       *   rotation.x =  Math.PI / 2  -> deitado no eixo Z
+       *   remover a linha            -> volta a ficar em pé no eixo Y
+       */
+      conservator.rotation.x = -Math.PI / 2
       conservator.position.set(supportX + 0.35, conservatorY, conservatorZ)
       group.add(conservator)
 
