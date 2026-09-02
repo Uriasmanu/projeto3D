@@ -365,31 +365,38 @@ export default {
       const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 24), bodyMaterial)
       conservator.add(body)
 
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.06, radius * 1.06, 0.05, 24), bodyMaterial)
-      cap.position.y = length / 2
-      conservator.add(cap)
-
+      /*
+       * As duas extremidades sao iguais: tampa circular aparafusada em cada
+       * ponta do cilindro, espelhadas pelo sinal de `end`.
+       */
+      const capGeometry = new THREE.CylinderGeometry(radius * 1.06, radius * 1.06, 0.05, 24)
       const boltGeometry = new THREE.CylinderGeometry(0.018, 0.018, 0.03, 8)
       const boltCount = 14
-      for (let i = 0; i < boltCount; i += 1) {
-        const angle = (i / boltCount) * Math.PI * 2
-        const bolt = new THREE.Mesh(boltGeometry, darkMetalMaterial)
-        bolt.position.set(Math.cos(angle) * radius * 0.9, length / 2 + 0.03, Math.sin(angle) * radius * 0.9)
-        conservator.add(bolt)
-      }
 
-      const seam = new THREE.Mesh(new THREE.BoxGeometry(radius * 0.18, length * 0.75, 0.03), darkMetalMaterial)
-      seam.position.set(0, 0, radius * 0.97)
-      conservator.add(seam)
+      ;[-1, 1].forEach((end) => {
+        const cap = new THREE.Mesh(capGeometry, bodyMaterial)
+        cap.position.y = (end * length) / 2
+        conservator.add(cap)
+
+        for (let i = 0; i < boltCount; i += 1) {
+          const angle = (i / boltCount) * Math.PI * 2
+          const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
+          bolt.position.set(
+            Math.cos(angle) * radius * 0.9,
+            (end * (length + 0.06)) / 2,
+            Math.sin(angle) * radius * 0.9
+          )
+          conservator.add(bolt)
+        }
+      })
 
       /*
        * >>> ROTAÇÃO DO CONSERVADOR DE ÓLEO <<<
        * O cilindro nasce em pé (CylinderGeometry cresce no eixo Y). Girar -90°
-       * em Z deita o grupo inteiro (corpo, tampa, parafusos e costura) sobre o
-       * eixo X, que é como o conservador aparece na referência.
+       * em X deita o grupo inteiro (corpo, tampas e parafusos) sobre o eixo Z.
        * Para mudar a orientação, altere a linha abaixo:
-       *   rotation.z = -Math.PI / 2  -> deitado no eixo X (atual)
-       *   rotation.x =  Math.PI / 2  -> deitado no eixo Z
+       *   rotation.x = -Math.PI / 2  -> deitado no eixo Z (atual)
+       *   rotation.z = -Math.PI / 2  -> deitado no eixo X
        *   remover a linha            -> volta a ficar em pé no eixo Y
        */
       conservator.rotation.x = -Math.PI / 2
