@@ -304,7 +304,7 @@ export default {
       const length = 1.5
       const supportX = TANK_WIDTH / 2 - 0.4
       const conservatorY = BASE_HEIGHT + TANK_HEIGHT + 0.95
-      const conservatorZ = 0.15
+      const conservatorZ = 0
 
       // centro do cilindro deitado — destino do tubo de ligacao
       const conservatorX = supportX + 0.35
@@ -362,6 +362,20 @@ export default {
       const boltSpreadX = 0.16
       const boltSpreadZ = beamWidth * 0.45
 
+      const boltCenterX = beamStartX + 0.16
+
+      /*
+       * Chapa vertical em pe sobre cada viga: vai do fim dos parafusos ate a
+       * ponta da viga e sobe do topo dela ate a altura do CENTRO do cilindro.
+       * Assim entra por baixo do conservador e para no meio dele, sem furar o
+       * topo — a leitura e de duas chapas segurando o cilindro.
+       */
+      const braceThickness = 0.06
+      const braceStartX = boltCenterX + boltSpreadX / 0.8
+      const braceLength = beamEndX - braceStartX
+      const braceBottomY = lidTop + beamHeight
+      const braceHeight = conservatorY - braceBottomY
+
       ;[-1, 1].forEach((side) => {
         const z = side * beamZ
 
@@ -372,7 +386,6 @@ export default {
         beam.position.set((beamStartX + beamEndX) / 2, lidTop + beamHeight / 2, z)
         group.add(beam)
 
-        const boltCenterX = beamStartX + 0.16
         ;[-1, 1].forEach((dx) => {
           ;[-1, 1].forEach((dz) => {
             const bolt = new THREE.Mesh(beamBoltGeometry, bodyMaterial)
@@ -384,6 +397,17 @@ export default {
             group.add(bolt)
           })
         })
+
+        const brace = new THREE.Mesh(
+          new THREE.BoxGeometry(braceLength, braceHeight, braceThickness),
+          bodyMaterial
+        )
+        brace.position.set(
+          (braceStartX + beamEndX) / 2,
+          braceBottomY + braceHeight / 2,
+          z
+        )
+        group.add(brace)
       })
 
       const flangeHeight = 0.03
