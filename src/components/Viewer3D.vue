@@ -122,9 +122,11 @@ export default {
       const finMaterial = new THREE.MeshStandardMaterial({ color: 0xb6bbc0, metalness: 0.45, roughness: 0.4 })
       // tampa um tom acima do corpo, para o relevo dela se separar do tanque
       const lidMaterial = new THREE.MeshStandardMaterial({ color: 0xd7dbdf, metalness: 0.4, roughness: 0.45 })
-      const darkMetalMaterial = new THREE.MeshStandardMaterial({ color: 0x35383c, metalness: 0.6, roughness: 0.4 })
       const porcelainMaterial = new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.55 })
       const terminalMaterial = new THREE.MeshStandardMaterial({ color: 0xcfd3d6, metalness: 0.8, roughness: 0.25 })
+      // metal da valvula: um tom acima do corpo. Metalness baixo de proposito —
+      // sem environment map, metalness alto renderiza escuro demais.
+      const valveMaterial = new THREE.MeshStandardMaterial({ color: 0xd9dde1, metalness: 0.35, roughness: 0.4 })
 
       /*
        * O ponto de chamada de cada peça é o centro da sua caixa envolvente. Em
@@ -149,8 +151,7 @@ export default {
         new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
       register('conservador', this.buildConservatorAssembly(bodyMaterial),
         new THREE.Vector3(TANK_WIDTH * 0.11, TANK_HEIGHT * 0.15, 0))
-      register('valvula', this.buildValve(darkMetalMaterial))
-      register('aviso', this.buildWarningSign())
+      register('valvula', this.buildValve(valveMaterial))
 
       const ground = new THREE.Mesh(
         new THREE.CircleGeometry(50, 32),
@@ -615,30 +616,81 @@ export default {
       return group
     },
 
-    buildValve(material) {
+    /**
+     * Cano de dreno saindo da face esquerda, com corpo de valvula no meio e
+     * volante vermelho de raios EM CIMA, girando em torno de uma haste
+     * vertical — como uma valvula gaveta de verdade. O ponto de saida fica
+     * alem da ultima aleta em Z, entao o conjunto nao cruza com o radiador.
+     */
+    buildValve(metalMaterial) {
       const group = new THREE.Group()
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.18, 10), material)
-      body.rotation.z = Math.PI / 2
-      body.position.set(-TANK_WIDTH / 2 - 0.05, BASE_HEIGHT + 0.18, TANK_DEPTH / 2 - 0.15)
-      group.add(body)
+      const redMaterial = new THREE.MeshStandardMaterial({
+        color: 0xb0332b,
+        metalness: 0.3,
+        roughness: 0.5,
+      })
 
-      const handle = new THREE.Mesh(
-        new THREE.BoxGeometry(0.03, 0.14, 0.03),
-        new THREE.MeshStandardMaterial({ color: 0xb0332b, metalness: 0.3, roughness: 0.5 })
+      const valveX = -TANK_WIDTH / 2 - 0.11
+      const valveY = BASE_HEIGHT + 0.18
+      const valveZ = TANK_DEPTH / 2 - 0.15
+      const wheelRadius = 0.09
+
+      // o cano corre em X: as pecas nascem com o eixo em Y e sao deitadas
+      const lieAlongX = (mesh) => {
+        mesh.rotation.z = Math.PI / 2
+        return mesh
+      }
+
+      const pipe = lieAlongX(
+        new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.24, 12), metalMaterial)
       )
-      handle.position.set(-TANK_WIDTH / 2 - 0.14, BASE_HEIGHT + 0.18, TANK_DEPTH / 2 - 0.15)
-      group.add(handle)
+      pipe.position.set(valveX, valveY, valveZ)
+      group.add(pipe)
+
+      const flange = lieAlongX(
+        new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.03, 16), metalMaterial)
+      )
+      flange.position.set(-TANK_WIDTH / 2 - 0.015, valveY, valveZ)
+      group.add(flange)
+
+      const valveBody = lieAlongX(
+        new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 16), metalMaterial)
+      )
+      valveBody.position.set(valveX, valveY, valveZ)
+      group.add(valveBody)
+
+      // haste vertical ligando o corpo ao volante
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.12, 8),
+        metalMaterial
+      )
+      stem.position.set(valveX, valveY + 0.12, valveZ)
+      group.add(stem)
+
+      /*
+       * O volante e montado no plano XY (o Torus ja nasce assim) e depois o
+       * grupo inteiro e deitado 90 graus, o que poe aro, cubo e raios na
+       * horizontal de uma vez, sem ter que girar cada raio separadamente.
+       */
+      const wheel = new THREE.Group()
+      wheel.add(new THREE.Mesh(new THREE.TorusGeometry(wheelRadius, 0.013, 8, 24), redMaterial))
+
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.03, 12), redMaterial)
+      hub.rotation.x = Math.PI / 2
+      wheel.add(hub)
+
+      const spokeGeometry = new THREE.CylinderGeometry(0.007, 0.007, wheelRadius * 2, 6)
+      for (let i = 0; i < 4; i += 1) {
+        const spoke = new THREE.Mesh(spokeGeometry, redMaterial)
+        spoke.rotation.z = (i / 4) * Math.PI
+        wheel.add(spoke)
+      }
+
+      wheel.rotation.x = -Math.PI / 2
+      wheel.position.set(valveX, valveY + 0.19, valveZ)
+      group.add(wheel)
 
       return group
-    },
-
-    buildWarningSign() {
-      const sign = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.18, 0.18),
-        new THREE.MeshStandardMaterial({ color: 0xf4c430, side: THREE.DoubleSide })
-      )
-      sign.position.set(TANK_WIDTH / 2 - 0.3, BASE_HEIGHT + TANK_HEIGHT * 0.35, TANK_DEPTH / 2 + 0.01)
-      return sign
     },
 
     animate() {
