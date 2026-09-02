@@ -137,7 +137,7 @@ export default {
       register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
       register('conservador', this.buildConservatorAssembly(bodyMaterial, darkMetalMaterial),
-        new THREE.Vector3(0, TANK_HEIGHT * 0.3, 0))
+        new THREE.Vector3(0, TANK_HEIGHT * 0.15, 0))
       register('valvula', this.buildValve(darkMetalMaterial))
       register('aviso', this.buildWarningSign())
 
@@ -306,12 +306,60 @@ export default {
       const conservatorY = BASE_HEIGHT + TANK_HEIGHT + 0.95
       const conservatorZ = 0.15
 
-      const support = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, conservatorY - (BASE_HEIGHT + TANK_HEIGHT), 0.3),
-        darkMetalMaterial
+      // centro do cilindro deitado — destino do tubo de ligacao
+      const conservatorX = supportX + 0.35
+
+      /*
+       * Tubo de ligacao tanque -> conservador. A curva sobe da tampa e se
+       * inclina ate o centro do cilindro; TubeGeometry a extruda como um duto
+       * de secao circular, dando o cotovelo arredondado da referencia.
+       * O ultimo ponto entra um pouco no cilindro para nao aparecer emenda.
+       */
+      const pipeCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(supportX, BASE_HEIGHT + TANK_HEIGHT + 0.06, conservatorZ),
+        new THREE.Vector3(supportX, conservatorY - 0.55, conservatorZ),
+        new THREE.Vector3(conservatorX - 0.12, conservatorY - 0.35, conservatorZ),
+        new THREE.Vector3(conservatorX, conservatorY - radius + 0.06, conservatorZ),
+      ])
+      const pipe = new THREE.Mesh(
+        new THREE.TubeGeometry(pipeCurve, 32, 0.075, 12, false),
+        bodyMaterial
       )
-      support.position.set(supportX, (BASE_HEIGHT + TANK_HEIGHT + conservatorY) / 2, conservatorZ)
-      group.add(support)
+      group.add(pipe)
+
+      /*
+       * Acabamento do pe do tubo, empilhado sobre a tampa: chapa quadrada
+       * rente a tampa, flange circular achatada em cima dela e a coroa de
+       * parafusos da flange.
+       */
+      const lidTop = BASE_HEIGHT + TANK_HEIGHT + 0.06
+
+      const basePlate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.34), bodyMaterial)
+      basePlate.position.set(supportX, lidTop + 0.02, conservatorZ)
+      group.add(basePlate)
+
+      const flangeHeight = 0.03
+      const flangeRadius = 0.13
+      const flange = new THREE.Mesh(
+        new THREE.CylinderGeometry(flangeRadius, flangeRadius, flangeHeight, 20),
+        bodyMaterial
+      )
+      const flangeY = lidTop + 0.04 + flangeHeight / 2
+      flange.position.set(supportX, flangeY, conservatorZ)
+      group.add(flange)
+
+      const flangeBoltGeometry = new THREE.CylinderGeometry(0.014, 0.014, 0.018, 8)
+      const flangeBoltCount = 8
+      for (let i = 0; i < flangeBoltCount; i += 1) {
+        const angle = (i / flangeBoltCount) * Math.PI * 2
+        const bolt = new THREE.Mesh(flangeBoltGeometry, darkMetalMaterial)
+        bolt.position.set(
+          supportX + Math.cos(angle) * flangeRadius * 0.72,
+          flangeY + flangeHeight / 2 + 0.009,
+          conservatorZ + Math.sin(angle) * flangeRadius * 0.72
+        )
+        group.add(bolt)
+      }
 
       const conservator = new THREE.Group()
       const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 24), bodyMaterial)
@@ -345,7 +393,7 @@ export default {
        *   remover a linha            -> volta a ficar em pé no eixo Y
        */
       conservator.rotation.x = -Math.PI / 2
-      conservator.position.set(supportX + 0.35, conservatorY, conservatorZ)
+      conservator.position.set(conservatorX, conservatorY, conservatorZ)
       group.add(conservator)
 
       return group
