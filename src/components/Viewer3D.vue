@@ -134,7 +134,7 @@ export default {
         new THREE.Vector3(-TANK_WIDTH * 0.42, 0, TANK_DEPTH * 0.35))
       register('tampa', this.buildTopLid(bodyMaterial, darkMetalMaterial),
         new THREE.Vector3(TANK_WIDTH * 0.3, 0, -TANK_DEPTH * 0.25))
-      register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial, darkMetalMaterial),
+      register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
       register('conservador', this.buildConservatorAssembly(bodyMaterial, darkMetalMaterial),
         new THREE.Vector3(0, TANK_HEIGHT * 0.3, 0))
@@ -270,7 +270,7 @@ export default {
       return group
     },
 
-    buildBushingArray(porcelainMaterial, terminalMaterial, clampMaterial) {
+    buildBushingArray(porcelainMaterial, terminalMaterial) {
       const group = new THREE.Group()
       const lidY = BASE_HEIGHT + TANK_HEIGHT + 0.06
 
@@ -287,11 +287,6 @@ export default {
         const lv = this.buildBushing(0.55, 5, 0.05, 0.13, porcelainMaterial, terminalMaterial)
         lv.position.set(lvXs[i], lidY, lvZ)
         group.add(lv)
-
-        const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), clampMaterial)
-        clamp.position.set((x + lvXs[i]) / 2, lidY + 0.4, (hvZ + lvZ) / 2)
-        clamp.rotation.y = Math.PI / 4
-        group.add(clamp)
       })
 
       return group
