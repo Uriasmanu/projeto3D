@@ -418,6 +418,36 @@ export default {
         group.add(brace)
       })
 
+      /*
+       * Duas maos francesas na face direita do tanque, uma sob cada viga.
+       * Triangulo retangulo com o canto reto no alto: cateto horizontal
+       * correndo por baixo do balanco da viga ate a ponta dela, cateto
+       * vertical descendo colado na face, hipotenusa fechando os dois.
+       * O Shape e desenhado no plano XY e o ExtrudeGeometry lhe da a
+       * espessura em Z, a mesma das chapas.
+       */
+      const cornerOut = beamEndX - TANK_WIDTH / 2
+      const cornerDrop = 0.42
+      const cornerShape = new THREE.Shape()
+      cornerShape.moveTo(0, 0)
+      cornerShape.lineTo(cornerOut, 0)
+      cornerShape.lineTo(0, -cornerDrop)
+      cornerShape.closePath()
+      const cornerGeometry = new THREE.ExtrudeGeometry(cornerShape, {
+        depth: braceThickness,
+        bevelEnabled: false,
+      })
+
+      ;[-1, 1].forEach((side) => {
+        const corner = new THREE.Mesh(cornerGeometry, bodyMaterial)
+        corner.position.set(
+          TANK_WIDTH / 2,
+          lidTop,
+          side * beamZ - braceThickness / 2
+        )
+        group.add(corner)
+      })
+
       const flangeHeight = 0.03
       const flangeRadius = 0.13
       const flange = new THREE.Mesh(
