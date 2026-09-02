@@ -132,11 +132,11 @@ export default {
         new THREE.Vector3(TANK_WIDTH * 0.3, -TANK_HEIGHT * 0.15, TANK_DEPTH * 0.5))
       register('radiadores', this.buildRadiatorFins(finMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.42, 0, TANK_DEPTH * 0.35))
-      register('tampa', this.buildTopLid(bodyMaterial, darkMetalMaterial),
+      register('tampa', this.buildTopLid(bodyMaterial),
         new THREE.Vector3(TANK_WIDTH * 0.3, 0, -TANK_DEPTH * 0.25))
       register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
-      register('conservador', this.buildConservatorAssembly(bodyMaterial, darkMetalMaterial),
+      register('conservador', this.buildConservatorAssembly(bodyMaterial),
         new THREE.Vector3(0, TANK_HEIGHT * 0.15, 0))
       register('valvula', this.buildValve(darkMetalMaterial))
       register('aviso', this.buildWarningSign())
@@ -213,7 +213,7 @@ export default {
       return group
     },
 
-    buildTopLid(bodyMaterial, boltMaterial) {
+    buildTopLid(bodyMaterial) {
       const group = new THREE.Group()
       const lidY = BASE_HEIGHT + TANK_HEIGHT
 
@@ -232,7 +232,7 @@ export default {
         const t = i / (boltsPerSide - 1)
         const x = -halfW + t * TANK_WIDTH
         ;[-halfD, halfD].forEach((z) => {
-          const bolt = new THREE.Mesh(boltGeometry, boltMaterial)
+          const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
           bolt.position.set(x, lidY + 0.07, z)
           group.add(bolt)
         })
@@ -298,7 +298,7 @@ export default {
       return group
     },
 
-    buildConservatorAssembly(bodyMaterial, darkMetalMaterial) {
+    buildConservatorAssembly(bodyMaterial) {
       const group = new THREE.Group()
       const radius = 0.32
       const length = 1.5
@@ -352,7 +352,7 @@ export default {
       const flangeBoltCount = 8
       for (let i = 0; i < flangeBoltCount; i += 1) {
         const angle = (i / flangeBoltCount) * Math.PI * 2
-        const bolt = new THREE.Mesh(flangeBoltGeometry, darkMetalMaterial)
+        const bolt = new THREE.Mesh(flangeBoltGeometry, bodyMaterial)
         bolt.position.set(
           supportX + Math.cos(angle) * flangeRadius * 0.72,
           flangeY + flangeHeight / 2 + 0.009,
