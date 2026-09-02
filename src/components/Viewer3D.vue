@@ -18,6 +18,14 @@ const LID_HEIGHT = 0.1
 const LID_OVERHANG = 0.16
 // quanto as maos francesas da face direita descem a partir do topo da tampa
 const BRACKET_DROP = 0.42
+
+// paleta do ambiente: ceu palido no alto, neblina cinza-azulada no horizonte e
+// piso de concreto. A cor da neblina e a mesma do fim do degrade, para o chao
+// se dissolver no fundo em vez de terminar na borda do disco.
+const SKY_TOP = '#e6ecf1'
+const SKY_HORIZON = '#bcc6ce'
+const FOG_COLOR = 0xbcc6ce
+const GROUND_COLOR = 0x8d9399
 // nome do filho que recebe o realce sozinho, quando a peca tem estrutura de apoio
 const HIGHLIGHT_TARGET = 'highlight'
 
@@ -37,6 +45,7 @@ export default {
       parts: [],
       canvasRect: null,
       lastAnchors: '',
+      backgroundTexture: null,
       highlightMaterials: new Map(),
       highlightedId: null,
     }
@@ -65,15 +74,38 @@ export default {
         }
       }
     })
+    if (this.backgroundTexture) this.backgroundTexture.dispose()
     this.renderer.dispose()
     this.$refs.container.removeChild(this.renderer.domElement)
   },
   methods: {
+    /**
+     * Degrade vertical usado como fundo. Um canvas de 2x256 basta: a textura e
+     * esticada na tela inteira e a interpolacao bilinear suaviza o resto.
+     */
+    createSkyTexture() {
+      const canvas = document.createElement('canvas')
+      canvas.width = 2
+      canvas.height = 256
+
+      const context = canvas.getContext('2d')
+      const gradient = context.createLinearGradient(0, 0, 0, canvas.height)
+      gradient.addColorStop(0, SKY_TOP)
+      gradient.addColorStop(1, SKY_HORIZON)
+      context.fillStyle = gradient
+      context.fillRect(0, 0, canvas.width, canvas.height)
+
+      return new THREE.CanvasTexture(canvas)
+    },
+
     initScene() {
       const container = this.$refs.container
 
       this.scene = new THREE.Scene()
-      this.scene.background = new THREE.Color(0xf2f2f2)
+      this.backgroundTexture = this.createSkyTexture()
+      this.scene.background = this.backgroundTexture
+      // a neblina comeca depois do equipamento, entao so afeta o piso distante
+      this.scene.fog = new THREE.Fog(FOG_COLOR, 12, 46)
 
       this.camera = new THREE.PerspectiveCamera(
         45,
@@ -155,7 +187,7 @@ export default {
 
       const ground = new THREE.Mesh(
         new THREE.CircleGeometry(50, 32),
-        new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 1 })
+        new THREE.MeshStandardMaterial({ color: GROUND_COLOR, roughness: 1 })
       )
       ground.rotation.x = -Math.PI / 2
       group.add(ground)
