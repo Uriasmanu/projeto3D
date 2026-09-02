@@ -11,6 +11,11 @@ const TANK_HEIGHT = 1.8 // Y
 const TANK_DEPTH = 1.7 // Z
 const BASE_HEIGHT = 0.15
 const TANK_CENTER_Y = BASE_HEIGHT + TANK_HEIGHT / 2
+// espessura da tampa e o quanto ela sobra do tanque em X/Z. Buchas, vigas e o
+// conjunto do conservador se apoiam em BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT,
+// entao engrossar a tampa sobe tudo o que fica em cima dela.
+const LID_HEIGHT = 0.1
+const LID_OVERHANG = 0.16
 // nome do filho que recebe o realce sozinho, quando a peca tem estrutura de apoio
 const HIGHLIGHT_TARGET = 'highlight'
 
@@ -113,6 +118,8 @@ export default {
 
       const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xc7ccd1, metalness: 0.4, roughness: 0.45 })
       const finMaterial = new THREE.MeshStandardMaterial({ color: 0xb6bbc0, metalness: 0.45, roughness: 0.4 })
+      // tampa um tom acima do corpo, para o relevo dela se separar do tanque
+      const lidMaterial = new THREE.MeshStandardMaterial({ color: 0xd7dbdf, metalness: 0.4, roughness: 0.45 })
       const darkMetalMaterial = new THREE.MeshStandardMaterial({ color: 0x35383c, metalness: 0.6, roughness: 0.4 })
       const porcelainMaterial = new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.55 })
       const terminalMaterial = new THREE.MeshStandardMaterial({ color: 0xcfd3d6, metalness: 0.8, roughness: 0.25 })
@@ -134,7 +141,7 @@ export default {
         new THREE.Vector3(TANK_WIDTH * 0.3, -TANK_HEIGHT * 0.15, TANK_DEPTH * 0.5))
       register('radiadores', this.buildRadiatorFins(finMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.42, 0, TANK_DEPTH * 0.35))
-      register('tampa', this.buildTopLid(bodyMaterial),
+      register('tampa', this.buildTopLid(lidMaterial),
         new THREE.Vector3(TANK_WIDTH * 0.3, 0, -TANK_DEPTH * 0.25))
       register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
@@ -194,23 +201,37 @@ export default {
       const finY = TANK_CENTER_Y
       const finDepth = 0.16
 
+      // faces longas (frente e fundo): o sinal de `face` espelha o Z
       const frontCount = 16
       const frontGeometry = new THREE.BoxGeometry(0.045, finHeight, finDepth)
       const frontSpacing = (TANK_WIDTH - 0.3) / frontCount
-      for (let i = 0; i < frontCount; i += 1) {
-        const fin = new THREE.Mesh(frontGeometry, material)
-        fin.position.set(-TANK_WIDTH / 2 + 0.3 + i * frontSpacing, finY, TANK_DEPTH / 2 + finDepth / 2)
-        group.add(fin)
-      }
+      ;[-1, 1].forEach((face) => {
+        for (let i = 0; i < frontCount; i += 1) {
+          const fin = new THREE.Mesh(frontGeometry, material)
+          fin.position.set(
+            -TANK_WIDTH / 2 + 0.3 + i * frontSpacing,
+            finY,
+            face * (TANK_DEPTH / 2 + finDepth / 2)
+          )
+          group.add(fin)
+        }
+      })
 
+      // faces curtas (esquerda e direita): o sinal de `face` espelha o X
       const sideCount = 8
       const sideGeometry = new THREE.BoxGeometry(finDepth, finHeight, 0.09)
       const sideSpacing = (TANK_DEPTH - 0.2) / sideCount
-      for (let i = 0; i < sideCount; i += 1) {
-        const fin = new THREE.Mesh(sideGeometry, material)
-        fin.position.set(-TANK_WIDTH / 2 - finDepth / 2, finY, -TANK_DEPTH / 2 + 0.15 + i * sideSpacing)
-        group.add(fin)
-      }
+      ;[-1, 1].forEach((face) => {
+        for (let i = 0; i < sideCount; i += 1) {
+          const fin = new THREE.Mesh(sideGeometry, material)
+          fin.position.set(
+            face * (TANK_WIDTH / 2 + finDepth / 2),
+            finY,
+            -TANK_DEPTH / 2 + 0.15 + i * sideSpacing
+          )
+          group.add(fin)
+        }
+      })
 
       return group
     },
@@ -220,10 +241,10 @@ export default {
       const lidY = BASE_HEIGHT + TANK_HEIGHT
 
       const lid = new THREE.Mesh(
-        new THREE.BoxGeometry(TANK_WIDTH + 0.08, 0.06, TANK_DEPTH + 0.08),
+        new THREE.BoxGeometry(TANK_WIDTH + LID_OVERHANG, LID_HEIGHT, TANK_DEPTH + LID_OVERHANG),
         bodyMaterial
       )
-      lid.position.y = lidY + 0.03
+      lid.position.y = lidY + LID_HEIGHT / 2
       group.add(lid)
 
       const boltGeometry = new THREE.CylinderGeometry(0.018, 0.018, 0.03, 8)
@@ -235,7 +256,7 @@ export default {
         const x = -halfW + t * TANK_WIDTH
         ;[-halfD, halfD].forEach((z) => {
           const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
-          bolt.position.set(x, lidY + 0.07, z)
+          bolt.position.set(x, lidY + LID_HEIGHT + 0.01, z)
           group.add(bolt)
         })
       }
@@ -280,7 +301,7 @@ export default {
 
     buildBushingArray(porcelainMaterial, terminalMaterial) {
       const group = new THREE.Group()
-      const lidY = BASE_HEIGHT + TANK_HEIGHT + 0.06
+      const lidY = BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT
 
       const hvXs = [-0.95, 0, 0.95]
       const lvXs = [-0.75, 0, 0.75]
@@ -324,7 +345,7 @@ export default {
        * O ultimo ponto entra um pouco no cilindro para nao aparecer emenda.
        */
       const pipeCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(supportX, BASE_HEIGHT + TANK_HEIGHT + 0.06, conservatorZ),
+        new THREE.Vector3(supportX, BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT, conservatorZ),
         new THREE.Vector3(supportX, conservatorY - 0.55, conservatorZ),
         new THREE.Vector3(conservatorX - 0.12, conservatorY - 0.35, conservatorZ),
         new THREE.Vector3(conservatorX, conservatorY - radius + 0.06, conservatorZ),
@@ -340,7 +361,7 @@ export default {
        * rente a tampa, flange circular achatada em cima dela e a coroa de
        * parafusos da flange.
        */
-      const lidTop = BASE_HEIGHT + TANK_HEIGHT + 0.06
+      const lidTop = BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT
 
       const plateSize = 0.44
       const plateHeight = 0.08
