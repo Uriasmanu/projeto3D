@@ -5,6 +5,10 @@
  * grupo com esse id) e a interface (App desenha um card por item e liga a
  * linha de chamada até a posição da peça projetada na tela). `side` define em
  * qual coluna o card é renderizado.
+ *
+ * Peças que existem na cena 3D mas não estão listadas aqui (base, tampa,
+ * válvula e placa de advertência) continuam sendo desenhadas, apenas sem card
+ * nem linha de chamada — App ignora âncoras sem card correspondente.
  */
 export const TRANSFORMER_PARTS = [
   {
@@ -24,22 +28,6 @@ export const TRANSFORMER_PARTS = [
     detail: 'aletas nas laterais',
   },
   {
-    id: 'valvula',
-    side: 'left',
-    label: 'Válvula de dreno',
-    description:
-      'Registro na parte inferior do tanque usado para drenar o óleo e coletar amostras para análise.',
-    detail: 'volante vermelho',
-  },
-  {
-    id: 'base',
-    side: 'left',
-    label: 'Base / skid',
-    description:
-      'Trilhos estruturais sob o tanque que permitem transporte, içamento e fixação do transformador na fundação.',
-    detail: 'perfil de trilho',
-  },
-  {
     id: 'conservador',
     side: 'right',
     label: 'Conservador de óleo',
@@ -48,27 +36,11 @@ export const TRANSFORMER_PARTS = [
     detail: 'tampa circular aparafusada',
   },
   {
-    id: 'tampa',
-    side: 'right',
-    label: 'Tampa superior',
-    description:
-      'Chapa plana aparafusada em todo o perímetro. Veda o tanque e serve de base de fixação para as buchas.',
-    detail: 'parafusos no perímetro',
-  },
-  {
     id: 'tanque',
     side: 'right',
     label: 'Tanque principal',
     description:
       'Carcaça de aço que abriga o núcleo, os enrolamentos e o óleo isolante — o corpo estrutural do equipamento.',
     detail: 'aço pintado',
-  },
-  {
-    id: 'aviso',
-    side: 'right',
-    label: 'Placa de advertência',
-    description:
-      'Sinalização de alta tensão aplicada à carcaça, exigida por norma de segurança.',
-    detail: 'símbolo de risco elétrico',
   },
 ]
