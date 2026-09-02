@@ -16,6 +16,8 @@ const TANK_CENTER_Y = BASE_HEIGHT + TANK_HEIGHT / 2
 // entao engrossar a tampa sobe tudo o que fica em cima dela.
 const LID_HEIGHT = 0.1
 const LID_OVERHANG = 0.16
+// quanto as maos francesas da face direita descem a partir do topo da tampa
+const BRACKET_DROP = 0.42
 // nome do filho que recebe o realce sozinho, quando a peca tem estrutura de apoio
 const HIGHLIGHT_TARGET = 'highlight'
 
@@ -197,13 +199,19 @@ export default {
 
     buildRadiatorFins(material) {
       const group = new THREE.Group()
+      /*
+       * Aletas de altura cheia: as maos francesas ficam fora da faixa de Z que
+       * elas ocupam, entao nao ha risco de uma atravessar a outra. Todas tem a
+       * mesma secao nas quatro faces: finThickness por finDepth de saliencia.
+       */
       const finHeight = TANK_HEIGHT * 0.8
       const finY = TANK_CENTER_Y
       const finDepth = 0.16
+      const finThickness = 0.035
 
       // faces longas (frente e fundo): o sinal de `face` espelha o Z
       const frontCount = 16
-      const frontGeometry = new THREE.BoxGeometry(0.045, finHeight, finDepth)
+      const frontGeometry = new THREE.BoxGeometry(finThickness, finHeight, finDepth)
       const frontSpacing = (TANK_WIDTH - 0.3) / frontCount
       ;[-1, 1].forEach((face) => {
         for (let i = 0; i < frontCount; i += 1) {
@@ -219,7 +227,7 @@ export default {
 
       // faces curtas (esquerda e direita): o sinal de `face` espelha o X
       const sideCount = 8
-      const sideGeometry = new THREE.BoxGeometry(finDepth, finHeight, 0.09)
+      const sideGeometry = new THREE.BoxGeometry(finDepth, finHeight, finThickness)
       const sideSpacing = (TANK_DEPTH - 0.2) / sideCount
       ;[-1, 1].forEach((face) => {
         for (let i = 0; i < sideCount; i += 1) {
@@ -324,7 +332,15 @@ export default {
     buildConservatorAssembly(bodyMaterial) {
       const group = new THREE.Group()
       const radius = 0.35
-      const length = 1.5
+      const beamWidth = 0.3
+      /*
+       * As vigas — e com elas as chapas verticais e as maos francesas — ficam
+       * encostadas na borda da tampa. Assim passam alem da ultima aleta do
+       * radiador e nenhuma das duas pecas atravessa a outra.
+       */
+      const beamZ = TANK_DEPTH / 2 - beamWidth / 2 + LID_OVERHANG / 2
+      // o cilindro tem que passar das duas chapas para parecer sustentado
+      const length = beamZ * 2 + 0.34
       /*
        * Deslocamento do conjunto (chapa de base, flange, tubo e cilindro) para
        * a direita. supportX alimenta as tres primeiras e conservatorX deriva
@@ -378,7 +394,6 @@ export default {
        * do transformador. Na extremidade esquerda de cada viga vao 4 parafusos
        * em 2x2 — o desenho da face 4 do dado.
        */
-      const beamWidth = 0.3
       const beamHeight = 0.04
       // deslocamento do par de vigas no eixo X — sobe este valor para leva-las
       // mais para a direita; a altura nao muda, seguem rentes a tampa
@@ -386,7 +401,6 @@ export default {
       const beamStartX = TANK_WIDTH * 0.30 + beamShiftX
       const beamEndX = TANK_WIDTH / 2 + 0.20 + beamShiftX
       const beamLength = beamEndX - beamStartX
-      const beamZ = TANK_DEPTH / 2 - beamWidth * 0.75
       const beamBoltGeometry = new THREE.CylinderGeometry(0.014, 0.014, 0.018, 8)
       const boltSpreadX = 0.16
       const boltSpreadZ = beamWidth * 0.45
@@ -448,11 +462,10 @@ export default {
        * espessura em Z, a mesma das chapas.
        */
       const cornerOut = beamEndX - TANK_WIDTH / 2
-      const cornerDrop = 0.42
       const cornerShape = new THREE.Shape()
       cornerShape.moveTo(0, 0)
       cornerShape.lineTo(cornerOut, 0)
-      cornerShape.lineTo(0, -cornerDrop)
+      cornerShape.lineTo(0, -BRACKET_DROP)
       cornerShape.closePath()
       const cornerGeometry = new THREE.ExtrudeGeometry(cornerShape, {
         depth: braceThickness,
