@@ -6,9 +6,15 @@
  * linha de chamada até a posição da peça projetada na tela). `side` define em
  * qual coluna o card é renderizado.
  *
+ * Estas quatro peças existem em TODAS as variantes de transformers.js, então
+ * os cards valem para qualquer modelo selecionado. `label` e `description` são
+ * a física da peça e não mudam; o `detail` aqui é o da variante de referência
+ * e é sobrescrito pelo mapa `details` de cada modelo (ver App.vue, computed
+ * `parts`), porque as contagens e cotas mudam de um equipamento para outro.
+ *
  * Peças que existem na cena 3D mas não estão listadas aqui (base, tampa,
- * válvula e placa de advertência) continuam sendo desenhadas, apenas sem card
- * nem linha de chamada — App ignora âncoras sem card correspondente.
+ * válvula de dreno e termômetro de óleo) continuam sendo desenhadas, apenas
+ * sem card nem linha de chamada — App ignora âncoras sem card correspondente.
  */
 export const TRANSFORMER_PARTS = [
   {

@@ -5,19 +5,63 @@
 <script>
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { TRANSFORMER_MODELS } from '../models/transformers'
 
-const TANK_WIDTH = 3.2 // X
-const TANK_HEIGHT = 1.8 // Y
-const TANK_DEPTH = 1.7 // Z
-const BASE_HEIGHT = 0.15
-const TANK_CENTER_Y = BASE_HEIGHT + TANK_HEIGHT / 2
-// espessura da tampa e o quanto ela sobra do tanque em X/Z. Buchas, vigas e o
-// conjunto do conservador se apoiam em BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT,
-// entao engrossar a tampa sobe tudo o que fica em cima dela.
-const LID_HEIGHT = 0.1
-const LID_OVERHANG = 0.16
+/*
+ * Cotas que NAO vem da especificacao do modelo.
+ *
+ * Sao proporcoes tiradas do transformador de referencia (tanque de
+ * 3,2 x 1,8 x 1,7 m) e reaplicadas as tres variantes, para que todas mantenham
+ * a mesma linguagem construtiva ao mudar de porte. Detalhe pequeno de metal
+ * (parafuso, cordao de solda, secao de aleta) fica em cota ABSOLUTA de
+ * proposito: um transformador maior tem, de verdade, proporcionalmente mais
+ * parafusos e mais aletas, e nao parafusos maiores.
+ */
+const BASE_HEIGHT_RATIO = 0.0833
+const LID_HEIGHT_RATIO = 0.0556
+const LID_OVERHANG_RATIO = 0.05
 // quanto as maos francesas da face direita descem a partir do topo da tampa
-const BRACKET_DROP = 0.42
+const BRACKET_DROP_RATIO = 0.2333
+// passo entre parafusos da tampa: fixo, entao tanque maior recebe mais deles
+const LID_BOLT_PITCH = 0.356
+
+/*
+ * Raio da esfera de referencia do palco. Toda variante e centrada em X/Z,
+ * apoiada em y = 0 e reescalada para que sua esfera envolvente meca isto — e o
+ * que faz o modelo selecionado se encaixar sempre da mesma forma, como se
+ * fosse o unico da cena.
+ *
+ * A normalizacao e pela esfera, e nao pela maior aresta da caixa: a esfera nao
+ * depende do angulo da camera, entao as tres variantes ocupam a mesma area na
+ * tela em qualquer posicao da orbita. Normalizar pela maior aresta deixava o
+ * equipamento mais fundo (o compacto) 15% mais largo em tela que os outros.
+ *
+ * O valor e o raio real da variante de referencia, entao ela fica em escala
+ * 1:1 e o enquadramento da camera abaixo continua valendo.
+ */
+const FRAME_RADIUS = 2.81
+
+/*
+ * Carrossel de modelos, no estilo das telas de selecao de personagem: as
+ * variantes ficam distribuidas em partes iguais de um circulo invisivel e o
+ * anel gira para trazer a escolhida para a frente. O modelo nao roda no
+ * proprio eixo — ele TRANSLADA pelo arco, sempre com a mesma face para a
+ * camera (ver setCarouselAngle).
+ *
+ * Sobre o raio: a camera padrao olha o anel de apenas ~13 graus de elevacao,
+ * quase de perfil, entao NAO existe raio que jogue as duas posicoes vizinhas
+ * para fora do quadro — uma delas cai sempre perto do eixo da camera, atras da
+ * posicao da frente (medido: 4,4 graus a raio 3,4 e 6,4 graus a raio 6,0). O
+ * que o raio controla e a distancia dela: em 4,6 a vizinha de tras fica a 15 m
+ * contra 8 m da da frente, ou seja, com metade do tamanho aparente e ja
+ * pegando neblina — le-se como "outra unidade mais atras no anel", que e o
+ * comportamento correto de um carrossel visto de baixo. Subir a camera faria o
+ * circulo aparecer como elipse e o arco ficar obvio, mas mudaria o
+ * enquadramento do modelo, entao fica como esta.
+ */
+const CAROUSEL_RADIUS = 4.6
+const CAROUSEL_DURATION = 820
+const TAU = Math.PI * 2
 
 // paleta do ambiente: ceu palido no alto, neblina cinza-azulada no horizonte e
 // piso de concreto. A cor da neblina e a mesma do fim do degrade, para o chao
@@ -29,30 +73,116 @@ const GROUND_COLOR = 0x8d9399
 // nome do filho que recebe o realce sozinho, quando a peca tem estrutura de apoio
 const HIGHLIGHT_TARGET = 'highlight'
 
+/*
+ * Escala do termometro de oleo soldado na tampa do conservador: varredura de
+ * 270 graus, do canto inferior esquerdo ao inferior direito do mostrador.
+ * Os angulos estao em coordenadas de canvas 2D (0 = direita, sentido
+ * horario), porque a escala e desenhada em canvas e virada textura.
+ */
+const GAUGE_START_ANGLE = Math.PI * 0.75
+const GAUGE_SWEEP = Math.PI * 1.5
+const GAUGE_MAX_TEMP = 120
+// acima deste valor a faixa do mostrador fica vermelha
+const GAUGE_ALARM_TEMP = 95
+// leitura que o ponteiro indica na cena
+const GAUGE_READING = 62
+// raio do mostrador com que buildOilThermometer desenha; o conjunto e
+// reescalado no ponto de montagem para acompanhar o conservador de cada modelo
+const GAUGE_DIAL_RADIUS = 0.11
+const GAUGE_REFERENCE_CONSERVATOR_RADIUS = 0.35
+const gaugeAngle = (temp) => GAUGE_START_ANGLE + (temp / GAUGE_MAX_TEMP) * GAUGE_SWEEP
+
+/**
+ * Cotas derivadas do tanque, calculadas uma vez por modelo e repassadas a
+ * todos os construtores de peca.
+ */
+const tankDims = (spec) => {
+  const { width, height, depth } = spec.tank
+  const baseHeight = height * BASE_HEIGHT_RATIO
+  const lidHeight = height * LID_HEIGHT_RATIO
+  return {
+    width,
+    height,
+    depth,
+    baseHeight,
+    lidHeight,
+    lidOverhang: width * LID_OVERHANG_RATIO,
+    tankCenterY: baseHeight + height / 2,
+    // topo do tanque (onde a tampa se apoia) e topo da tampa (onde tudo o mais
+    // se apoia): engrossar a tampa sobe buchas, vigas e conservador junto
+    lidY: baseHeight + height,
+    lidTop: baseHeight + height + lidHeight,
+    bracketDrop: height * BRACKET_DROP_RATIO,
+  }
+}
+
+// aceleracao e desaceleracao suaves, como um anel que ganha e perde inercia
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
+/*
+ * Menor giro que leva de um angulo a outro, em (-180, 180]. Sem isso, ir da
+ * primeira variante para a ultima daria quase uma volta inteira no sentido
+ * longo, em vez de um passo curto para o outro lado.
+ */
+const shortestTurn = (from, to) => {
+  const delta = (((to - from) % TAU) + TAU) % TAU
+  return delta > Math.PI ? delta - TAU : delta
+}
+
 export default {
   name: 'Viewer3D',
-  data() {
-    return {
-      scene: null,
-      camera: null,
-      renderer: null,
-      controls: null,
-      animationId: null,
-      initialCameraPosition: new THREE.Vector3(4.7, 3.1, 5.6),
-      cameraTarget: new THREE.Vector3(0, TANK_CENTER_Y + 0.4, 0),
-      // registro das peças: { id, object, anchor } — usado para projetar a
-      // posição de cada peça na tela e ligar os cards por linhas de chamada
-      parts: [],
-      canvasRect: null,
-      lastAnchors: '',
-      backgroundTexture: null,
-      highlightMaterials: new Map(),
-      highlightedId: null,
-    }
+  props: {
+    /** id da variante em TRANSFORMER_MODELS que deve estar em cena. */
+    modelId: {
+      type: String,
+      required: true,
+    },
+  },
+  /*
+   * O estado 3D vive em propriedades de instancia, e nao em `data()`: o
+   * template nao tem nenhum binding, e deixar o Vue observar centenas de
+   * objetos do Three (malhas, geometrias, matrizes) so gastaria memoria e
+   * tempo de inicializacao.
+   */
+  created() {
+    this.scene = null
+    this.camera = null
+    this.renderer = null
+    this.controls = null
+    // anel do carrossel e um grupo por posicao dele (ver layoutCarousel)
+    this.carousel = null
+    this.slots = []
+    this.animationId = null
+    this.initialCameraPosition = new THREE.Vector3(4.7, 3.1, 5.6)
+    this.cameraTarget = new THREE.Vector3(0, FRAME_RADIUS * 0.516, 0)
+    /*
+     * Uma entrada por variante: { id, group, parts }. `parts` e o registro das
+     * pecas com card — { id, object, offset, anchor } — usado para projetar a
+     * posicao de cada peca na tela e ligar os cards por linhas de chamada.
+     */
+    this.models = []
+    // -1 = nenhuma variante em cena ainda; assim o primeiro selectModel da
+    // montagem nao e descartado como "ja e esse o modelo ativo"
+    this.activeIndex = -1
+    // estado do giro do carrossel, ou null quando parado
+    this.spin = null
+    this.canvasSize = { width: 0, height: 0 }
+    this.lastAnchors = ''
+    this.materials = null
+    this.backgroundTexture = null
+    this.gaugeFaceTexture = null
+    this.highlightMaterials = new Map()
+    this.highlightedId = null
+  },
+  watch: {
+    modelId(id) {
+      this.selectModel(id, { animate: true })
+    },
   },
   mounted() {
     this.initScene()
-    this.buildTransformer()
+    this.buildModels()
+    this.selectModel(this.modelId, { animate: false })
     this.animate()
     window.addEventListener('resize', this.onWindowResize)
   },
@@ -75,6 +205,7 @@ export default {
       }
     })
     if (this.backgroundTexture) this.backgroundTexture.dispose()
+    if (this.gaugeFaceTexture) this.gaugeFaceTexture.dispose()
     this.renderer.dispose()
     this.$refs.container.removeChild(this.renderer.domElement)
   },
@@ -118,7 +249,23 @@ export default {
       this.renderer = new THREE.WebGLRenderer({ antialias: true })
       this.renderer.setPixelRatio(window.devicePixelRatio)
       this.renderer.setSize(container.clientWidth, container.clientHeight)
-      container.appendChild(this.renderer.domElement)
+
+      /*
+       * O canvas e o conteudo principal da pagina, entao precisa de nome
+       * acessivel. O tabIndex o poe na ordem de tabulacao, o que tambem
+       * habilita o `keydown` que o OrbitControls usa para o pan pelas setas.
+       */
+      const canvas = this.renderer.domElement
+      canvas.setAttribute('role', 'img')
+      canvas.setAttribute(
+        'aria-label',
+        'Modelo 3D interativo de um transformador elétrico. ' +
+          'Arraste para girar, use a rolagem para aproximar e as setas do teclado para deslocar.'
+      )
+      canvas.tabIndex = 0
+      container.appendChild(canvas)
+
+      this.canvasSize = { width: container.clientWidth, height: container.clientHeight }
 
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.65)
       this.scene.add(ambientLight)
@@ -131,6 +278,24 @@ export default {
       fillLight.position.set(-6, 4, -5)
       this.scene.add(fillLight)
 
+      // o piso fica FORA do carrossel: entrasse nele, a caixa envolvente de
+      // cada modelo passaria a ser o disco de 50 m e a normalizacao morreria —
+      // e ainda giraria junto com o anel
+      const ground = new THREE.Mesh(
+        new THREE.CircleGeometry(50, 32),
+        new THREE.MeshStandardMaterial({ color: GROUND_COLOR, roughness: 1 })
+      )
+      ground.rotation.x = -Math.PI / 2
+      this.scene.add(ground)
+
+      /*
+       * Anel do carrossel: e ele que gira na troca de modelo, levando as
+       * variantes pelo arco. Nasce na origem e so vai para o lugar em
+       * layoutCarousel, depois que as caixas dos modelos forem medidas.
+       */
+      this.carousel = new THREE.Group()
+      this.scene.add(this.carousel)
+
       this.controls = new OrbitControls(this.camera, this.renderer.domElement)
       this.controls.target.copy(this.cameraTarget)
       this.controls.enableDamping = true
@@ -142,66 +307,183 @@ export default {
     },
 
     /**
-     * Geometria procedural de um transformador de potência (tanque com aletas
-     * de radiador, buchas de AT/BT e tanque de expansão/conservador), montada
-     * a partir da referência em docs/transformador-de-poder-de-alta-tensão-55054468.webp
-     * enquanto não há um asset .glb/.gltf real (ver docs/PASSO_A_PASSO.md, seção 3).
+     * Materiais compartilhados pelas tres variantes. Instanciar um unico
+     * conjunto evita trocas de material redundantes no render e mantem o cache
+     * de realce (indexado pelo material base) com uma entrada por acabamento,
+     * e nao uma por modelo.
      */
-    buildTransformer() {
-      const group = new THREE.Group()
+    createMaterials() {
+      return {
+        body: new THREE.MeshStandardMaterial({ color: 0xc7ccd1, metalness: 0.4, roughness: 0.45 }),
+        fin: new THREE.MeshStandardMaterial({ color: 0xb6bbc0, metalness: 0.45, roughness: 0.4 }),
+        // tampa um tom acima do corpo, para o relevo dela se separar do tanque
+        lid: new THREE.MeshStandardMaterial({ color: 0xd7dbdf, metalness: 0.4, roughness: 0.45 }),
+        porcelain: new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.55 }),
+        terminal: new THREE.MeshStandardMaterial({ color: 0xcfd3d6, metalness: 0.8, roughness: 0.25 }),
+        // metal da valvula: um tom acima do corpo. Metalness baixo de proposito —
+        // sem environment map, metalness alto renderiza escuro demais.
+        valve: new THREE.MeshStandardMaterial({ color: 0xd9dde1, metalness: 0.35, roughness: 0.4 }),
+      }
+    },
 
-      const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xc7ccd1, metalness: 0.4, roughness: 0.45 })
-      const finMaterial = new THREE.MeshStandardMaterial({ color: 0xb6bbc0, metalness: 0.45, roughness: 0.4 })
-      // tampa um tom acima do corpo, para o relevo dela se separar do tanque
-      const lidMaterial = new THREE.MeshStandardMaterial({ color: 0xd7dbdf, metalness: 0.4, roughness: 0.45 })
-      const porcelainMaterial = new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.55 })
-      const terminalMaterial = new THREE.MeshStandardMaterial({ color: 0xcfd3d6, metalness: 0.8, roughness: 0.25 })
-      // metal da valvula: um tom acima do corpo. Metalness baixo de proposito —
-      // sem environment map, metalness alto renderiza escuro demais.
-      const valveMaterial = new THREE.MeshStandardMaterial({ color: 0xd9dde1, metalness: 0.35, roughness: 0.4 })
+    /**
+     * Constroi as tres variantes, cada uma dentro do seu grupo de posicao do
+     * carrossel, todas invisiveis; selectModel acende uma.
+     *
+     * A ordem importa: medir e normalizar acontece com os grupos de posicao
+     * ainda na origem, onde o referencial de cada modelo coincide com o do
+     * mundo. Só depois o anel e as posições vão para o círculo.
+     */
+    buildModels() {
+      this.materials = this.createMaterials()
+      // escala do termometro de oleo, consumida por buildOilThermometer
+      this.gaugeFaceTexture = this.createGaugeFaceTexture()
+
+      this.models = TRANSFORMER_MODELS.map((spec) => {
+        const model = this.buildModel(spec)
+        model.group.visible = false
+
+        const slot = new THREE.Group()
+        slot.add(model.group)
+        this.slots.push(slot)
+        this.carousel.add(slot)
+
+        return model
+      })
+
+      // as matrizes precisam estar atualizadas antes de medir as caixas
+      this.scene.updateMatrixWorld(true)
+      this.models.forEach((model) => this.normalizeModel(model))
+      this.layoutCarousel()
+    },
+
+    /** Ângulo da posição `index` no círculo, medido da frente do carrossel. */
+    slotAngle(index) {
+      return (index / this.models.length) * TAU
+    },
+
+    /** Rotação do anel que traz a posição `index` para a frente. */
+    carouselAngleFor(index) {
+      return -this.slotAngle(index)
+    },
+
+    /**
+     * Distribui as variantes em partes iguais de um círculo invisível de raio
+     * CAROUSEL_RADIUS e recua o anel inteiro em Z pelo mesmo raio.
+     *
+     * Essa combinação é o que garante o encaixe: com o anel girado em
+     * `-slotAngle(i)`, a posição `i` cai exatamente na origem do mundo — o
+     * mesmo lugar que o modelo teria se fosse o único da cena. A orientação
+     * quem cuida é `setCarouselAngle`.
+     */
+    layoutCarousel() {
+      this.carousel.position.set(0, 0, -CAROUSEL_RADIUS)
+      this.slots.forEach((slot, index) => {
+        const angle = this.slotAngle(index)
+        slot.position.set(
+          Math.sin(angle) * CAROUSEL_RADIUS,
+          0,
+          Math.cos(angle) * CAROUSEL_RADIUS
+        )
+      })
+      this.setCarouselAngle(0)
+    },
+
+    /**
+     * Gira o anel e CONTRA-GIRA cada posição pelo mesmo ângulo, de modo que a
+     * rotação de cada modelo no mundo seja sempre zero.
+     *
+     * É esta contra-rotação que faz o movimento ser de carrossel: o modelo
+     * herda do anel apenas a POSIÇÃO, então translada pelo arco mantendo
+     * sempre a mesma face para a câmera. Sem ela, a rotação no mundo seria
+     * `ângulo do anel + ângulo da posição` e o equipamento giraria em torno de
+     * si mesmo durante a troca — e, como ele parte exatamente da origem (onde
+     * a câmera está mirando), o que se via era um pião girando parado, com o
+     * deslocamento pelo arco quase imperceptível.
+     *
+     * O contra-giro é o mesmo para todas as posições, então todas as variantes
+     * ficam sempre de frente, inclusive as que estão no fundo do anel.
+     */
+    setCarouselAngle(angle) {
+      this.carousel.rotation.y = angle
+      this.slots.forEach((slot) => {
+        slot.rotation.y = -angle
+      })
+    },
+
+    /**
+     * Geometria procedural de um transformador (tanque com aletas de radiador,
+     * buchas de AT/BT e tanque de expansão/conservador), montada a partir da
+     * referência em docs/transformador-de-poder-de-alta-tensão-55054468.webp
+     * enquanto não há um asset .glb/.gltf real (ver docs/PASSO_A_PASSO.md,
+     * seção 3). As cotas vêm da especificação em src/models/transformers.js.
+     */
+    buildModel(spec) {
+      const group = new THREE.Group()
+      const dims = tankDims(spec)
+      const m = this.materials
+      const parts = []
 
       /*
        * O ponto de chamada de cada peça é o centro da sua caixa envolvente. Em
        * peças grandes e concêntricas (tanque, radiadores e tampa compartilham
        * praticamente o mesmo centro) esse ponto é deslocado para uma região
-       * característica da peça, senão os marcadores se sobrepõem na tela.
+       * característica da peça, senão os marcadores se sobrepõem na tela. O
+       * deslocamento é proporcional ao tanque, então vale nas três variantes.
        */
       const register = (id, object, offset) => {
         object.name = id
         group.add(object)
-        this.parts.push({ id, object, offset: offset || null, anchor: new THREE.Vector3() })
+        parts.push({ id, object, offset: offset || null, anchor: new THREE.Vector3() })
       }
 
-      register('base', this.buildBaseRails(bodyMaterial))
-      register('tanque', this.buildTankBody(bodyMaterial),
-        new THREE.Vector3(TANK_WIDTH * 0.3, -TANK_HEIGHT * 0.15, TANK_DEPTH * 0.5))
-      register('radiadores', this.buildRadiatorFins(finMaterial),
-        new THREE.Vector3(-TANK_WIDTH * 0.42, 0, TANK_DEPTH * 0.35))
-      register('tampa', this.buildTopLid(lidMaterial),
-        new THREE.Vector3(TANK_WIDTH * 0.3, 0, -TANK_DEPTH * 0.25))
-      register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial),
-        new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
-      register('conservador', this.buildConservatorAssembly(bodyMaterial),
-        new THREE.Vector3(TANK_WIDTH * 0.11, TANK_HEIGHT * 0.15, 0))
-      register('valvula', this.buildValve(valveMaterial))
+      register('base', this.buildBaseRails(dims, m.body))
+      register('tanque', this.buildTankBody(dims, m.body),
+        new THREE.Vector3(dims.width * 0.3, -dims.height * 0.15, dims.depth * 0.5))
+      register('radiadores', this.buildRadiatorFins(dims, spec, m.fin),
+        new THREE.Vector3(-dims.width * 0.42, 0, dims.depth * 0.35))
+      register('tampa', this.buildTopLid(dims, m.lid),
+        new THREE.Vector3(dims.width * 0.3, 0, -dims.depth * 0.25))
+      register('buchas', this.buildBushingArray(dims, spec, m.porcelain, m.terminal),
+        new THREE.Vector3(-dims.width * 0.2, 0, 0))
+      register('conservador', this.buildConservatorAssembly(dims, spec, m.body),
+        new THREE.Vector3(dims.width * 0.11, dims.height * 0.15, 0))
+      register('valvula', this.buildValve(dims, m.valve))
 
-      const ground = new THREE.Mesh(
-        new THREE.CircleGeometry(50, 32),
-        new THREE.MeshStandardMaterial({ color: GROUND_COLOR, roughness: 1 })
-      )
-      ground.rotation.x = -Math.PI / 2
-      group.add(ground)
+      return { id: spec.id, group, parts }
+    },
 
-      this.scene.add(group)
+    /**
+     * Encaixa a variante na esfera de referência do palco: centrada em X/Z,
+     * apoiada em y = 0 e reescalada para que sua esfera envolvente tenha raio
+     * FRAME_RADIUS. É o que faz qualquer modelo selecionado ocupar exatamente
+     * o mesmo espaço, como se fosse o único da cena — um equipamento baixo e
+     * largo e outro alto e estreito subtendem a mesma área na tela, de
+     * qualquer ponto da órbita.
+     *
+     * As âncoras das peças são medidas ANTES (com o grupo ainda em
+     * transformação identidade) e depois levadas para o referencial da posição
+     * do carrossel pela matriz do grupo, senão o deslocamento característico
+     * de cada peça — que está em cotas do tanque — sairia fora de escala.
+     */
+    normalizeModel(model) {
+      const box = new THREE.Box3().setFromObject(model.group)
+      const center = box.getCenter(new THREE.Vector3())
+      const sphere = box.getBoundingSphere(new THREE.Sphere())
+      const scale = FRAME_RADIUS / sphere.radius
 
-      // as matrizes precisam estar atualizadas antes de medir a caixa de cada peça
-      this.scene.updateMatrixWorld(true)
-      const box = new THREE.Box3()
-      this.parts.forEach((part) => {
-        box.setFromObject(part.object)
-        box.getCenter(part.anchor)
+      const partBox = new THREE.Box3()
+      model.parts.forEach((part) => {
+        partBox.setFromObject(part.object)
+        partBox.getCenter(part.anchor)
         if (part.offset) part.anchor.add(part.offset)
       })
+
+      model.group.scale.setScalar(scale)
+      model.group.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale)
+      model.group.updateMatrixWorld(true)
+
+      model.parts.forEach((part) => part.anchor.applyMatrix4(model.group.matrix))
     },
 
     /**
@@ -210,36 +492,36 @@ export default {
      * de referência. Usam o cinza do corpo — na referência o skid é pintado
      * junto com o tanque, não é metal escuro.
      */
-    buildBaseRails(material) {
+    buildBaseRails(dims, material) {
       const group = new THREE.Group()
-      const railGeometry = new THREE.BoxGeometry(0.22, BASE_HEIGHT, TANK_DEPTH + 0.7)
+      const railGeometry = new THREE.BoxGeometry(0.22, dims.baseHeight, dims.depth + 0.7)
       ;[-1, 1].forEach((side) => {
         const rail = new THREE.Mesh(railGeometry, material)
-        rail.position.set(side * TANK_WIDTH * 0.3, BASE_HEIGHT / 2, 0)
+        rail.position.set(side * dims.width * 0.3, dims.baseHeight / 2, 0)
         group.add(rail)
       })
       return group
     },
 
-    buildTankBody(material) {
+    buildTankBody(dims, material) {
       const tank = new THREE.Mesh(
-        new THREE.BoxGeometry(TANK_WIDTH, TANK_HEIGHT, TANK_DEPTH),
+        new THREE.BoxGeometry(dims.width, dims.height, dims.depth),
         material
       )
-      tank.position.y = TANK_CENTER_Y
+      tank.position.y = dims.tankCenterY
       return tank
     },
 
-    buildRadiatorFins(material) {
+    buildRadiatorFins(dims, spec, material) {
       const group = new THREE.Group()
       /*
        * Aletas de altura cheia: as maos francesas ficam fora da faixa de Z que
        * elas ocupam, entao nao ha risco de uma atravessar a outra. Todas tem a
        * mesma secao nas quatro faces: finThickness por finDepth de saliencia.
        */
-      const finHeight = TANK_HEIGHT * 0.8
-      const finY = TANK_CENTER_Y
-      const finDepth = 0.22
+      const finHeight = dims.height * 0.8
+      const finY = dims.tankCenterY
+      const finDepth = spec.fins.depth
       const finThickness = 0.035
 
       /*
@@ -255,21 +537,21 @@ export default {
       ]
 
       // faces longas (frente e fundo): o sinal de `face` espelha o Z
-      const frontCount = 16
+      const frontCount = spec.fins.front
       const frontGeometry = new THREE.BoxGeometry(finThickness, finHeight, finDepth)
-      const frontSpacing = (TANK_WIDTH - 0.3) / frontCount
+      const frontSpacing = (dims.width - 0.3) / frontCount
       ;[-1, 1].forEach((face) => {
         for (let i = 0; i < frontCount; i += 1) {
           const fin = new THREE.Mesh(frontGeometry, material)
           fin.position.set(
-            -TANK_WIDTH / 2 + 0.3 + i * frontSpacing,
+            -dims.width / 2 + 0.3 + i * frontSpacing,
             finY,
-            face * (TANK_DEPTH / 2 + finDepth / 2)
+            face * (dims.depth / 2 + finDepth / 2)
           )
           group.add(fin)
         }
 
-        const firstX = -TANK_WIDTH / 2 + 0.3
+        const firstX = -dims.width / 2 + 0.3
         const lastX = firstX + (frontCount - 1) * frontSpacing
         const frontHeaderGeometry = new THREE.BoxGeometry(
           lastX - firstX + finThickness,
@@ -281,28 +563,31 @@ export default {
           header.position.set(
             (firstX + lastX) / 2,
             y,
-            face * (TANK_DEPTH / 2 + finDepth - headerSize / 2)
+            face * (dims.depth / 2 + finDepth - headerSize / 2)
           )
           group.add(header)
         })
       })
 
-      // faces curtas (esquerda e direita): o sinal de `face` espelha o X
-      const sideCount = 8
+      // faces curtas (esquerda e direita): o sinal de `face` espelha o X.
+      // `side: 0` na especificacao deixa essas faces lisas.
+      const sideCount = spec.fins.side
+      if (!sideCount) return group
+
       const sideGeometry = new THREE.BoxGeometry(finDepth, finHeight, finThickness)
-      const sideSpacing = (TANK_DEPTH - 0.2) / sideCount
+      const sideSpacing = (dims.depth - 0.2) / sideCount
       ;[-1, 1].forEach((face) => {
         for (let i = 0; i < sideCount; i += 1) {
           const fin = new THREE.Mesh(sideGeometry, material)
           fin.position.set(
-            face * (TANK_WIDTH / 2 + finDepth / 2),
+            face * (dims.width / 2 + finDepth / 2),
             finY,
-            -TANK_DEPTH / 2 + 0.15 + i * sideSpacing
+            -dims.depth / 2 + 0.15 + i * sideSpacing
           )
           group.add(fin)
         }
 
-        const firstZ = -TANK_DEPTH / 2 + 0.15
+        const firstZ = -dims.depth / 2 + 0.15
         const lastZ = firstZ + (sideCount - 1) * sideSpacing
         const sideHeaderGeometry = new THREE.BoxGeometry(
           headerSize,
@@ -312,7 +597,7 @@ export default {
         headerYs.forEach((y) => {
           const header = new THREE.Mesh(sideHeaderGeometry, material)
           header.position.set(
-            face * (TANK_WIDTH / 2 + finDepth - headerSize / 2),
+            face * (dims.width / 2 + finDepth - headerSize / 2),
             y,
             (firstZ + lastZ) / 2
           )
@@ -323,32 +608,36 @@ export default {
       return group
     },
 
-    buildTopLid(bodyMaterial) {
+    buildTopLid(dims, bodyMaterial) {
       const group = new THREE.Group()
-      const lidY = BASE_HEIGHT + TANK_HEIGHT
 
       const lid = new THREE.Mesh(
-        new THREE.BoxGeometry(TANK_WIDTH + LID_OVERHANG, LID_HEIGHT, TANK_DEPTH + LID_OVERHANG),
+        new THREE.BoxGeometry(
+          dims.width + dims.lidOverhang,
+          dims.lidHeight,
+          dims.depth + dims.lidOverhang
+        ),
         bodyMaterial
       )
-      lid.position.y = lidY + LID_HEIGHT / 2
+      lid.position.y = dims.lidY + dims.lidHeight / 2
       group.add(lid)
 
       /*
-       * Parafusos nas quatro bordas. Os das laterais curtas usam o mesmo passo
-       * das bordas longas e pulam o primeiro e o ultimo, senao repetiriam os
+       * Parafusos nas quatro bordas, em passo constante — tanque mais largo
+       * recebe mais deles. Os das laterais curtas usam o mesmo passo das
+       * bordas longas e pulam o primeiro e o ultimo, senao repetiriam os
        * parafusos de canto que os lados longos ja colocaram.
        */
       const boltGeometry = new THREE.CylinderGeometry(0.018, 0.018, 0.03, 8)
-      const boltsPerSide = 10
-      const halfW = TANK_WIDTH / 2
-      const halfD = TANK_DEPTH / 2
-      const boltY = lidY + LID_HEIGHT + 0.01
-      const boltStep = TANK_WIDTH / (boltsPerSide - 1)
-      const boltsPerEnd = Math.round(TANK_DEPTH / boltStep) + 1
+      const boltsPerSide = Math.max(6, Math.round(dims.width / LID_BOLT_PITCH) + 1)
+      const halfW = dims.width / 2
+      const halfD = dims.depth / 2
+      const boltY = dims.lidY + dims.lidHeight + 0.01
+      const boltStep = dims.width / (boltsPerSide - 1)
+      const boltsPerEnd = Math.round(dims.depth / boltStep) + 1
 
       for (let i = 1; i < boltsPerEnd - 1; i += 1) {
-        const z = -halfD + (i / (boltsPerEnd - 1)) * TANK_DEPTH
+        const z = -halfD + (i / (boltsPerEnd - 1)) * dims.depth
         ;[-halfW, halfW].forEach((x) => {
           const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
           bolt.position.set(x, boltY, z)
@@ -358,7 +647,7 @@ export default {
 
       for (let i = 0; i < boltsPerSide; i += 1) {
         const t = i / (boltsPerSide - 1)
-        const x = -halfW + t * TANK_WIDTH
+        const x = -halfW + t * dims.width
         ;[-halfD, halfD].forEach((z) => {
           const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
           bolt.position.set(x, boltY, z)
@@ -404,38 +693,47 @@ export default {
       return group
     },
 
-    buildBushingArray(porcelainMaterial, terminalMaterial) {
+    /**
+     * Fileira de alta tensão atrás e de baixa tensão à frente, uma bucha de
+     * cada por fase. As fases são distribuídas simetricamente em torno de
+     * x = 0 com o passo da especificação, então a mesma conta serve para o
+     * trifásico (3 buchas por fileira) e para o monofásico (2).
+     */
+    buildBushingArray(dims, spec, porcelainMaterial, terminalMaterial) {
       const group = new THREE.Group()
-      const lidY = BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT
+      const { phases, hv, lv } = spec.bushings
+      const hvZ = -dims.depth * 0.206
+      const lvZ = dims.depth * 0.147
 
-      const hvXs = [-0.95, 0, 0.95]
-      const lvXs = [-0.75, 0, 0.75]
-      const hvZ = -0.35
-      const lvZ = 0.25
+      const offsetFor = (index, step) => (index - (phases - 1) / 2) * step
 
-      hvXs.forEach((x, i) => {
-        const hv = this.buildBushing(1.0, 7, 0.055, 0.16, porcelainMaterial, terminalMaterial)
-        hv.position.set(x, lidY, hvZ)
-        group.add(hv)
+      for (let i = 0; i < phases; i += 1) {
+        const high = this.buildBushing(
+          hv.height, hv.sheds, hv.shaftRadius, hv.shedRadius, porcelainMaterial, terminalMaterial
+        )
+        high.position.set(offsetFor(i, hv.step), dims.lidTop, hvZ)
+        group.add(high)
 
-        const lv = this.buildBushing(0.55, 5, 0.05, 0.13, porcelainMaterial, terminalMaterial)
-        lv.position.set(lvXs[i], lidY, lvZ)
-        group.add(lv)
-      })
+        const low = this.buildBushing(
+          lv.height, lv.sheds, lv.shaftRadius, lv.shedRadius, porcelainMaterial, terminalMaterial
+        )
+        low.position.set(offsetFor(i, lv.step), dims.lidTop, lvZ)
+        group.add(low)
+      }
 
       return group
     },
 
-    buildConservatorAssembly(bodyMaterial) {
+    buildConservatorAssembly(dims, spec, bodyMaterial) {
       const group = new THREE.Group()
-      const radius = 0.35
+      const radius = spec.conservator.radius
       const beamWidth = 0.3
       /*
        * As vigas — e com elas as chapas verticais e as maos francesas — ficam
        * encostadas na borda da tampa. Assim passam alem da ultima aleta do
        * radiador e nenhuma das duas pecas atravessa a outra.
        */
-      const beamZ = TANK_DEPTH / 2 - beamWidth / 2 + LID_OVERHANG / 2
+      const beamZ = dims.depth / 2 - beamWidth / 2 + dims.lidOverhang / 2
       // o cilindro tem que passar das duas chapas para parecer sustentado
       const length = beamZ * 2 + 0.34
       /*
@@ -444,23 +742,29 @@ export default {
        * dele, entao mexer aqui move tudo junto.
        */
       const assemblyShiftX = 0.24
-      const supportX = TANK_WIDTH / 2 - 0.4 + assemblyShiftX
-      const conservatorY = BASE_HEIGHT + TANK_HEIGHT + 0.75
+      const supportX = dims.width / 2 - 0.4 + assemblyShiftX
+      const lidTop = dims.lidTop
+      // folga entre o topo da tampa e a barriga do cilindro
+      const conservatorClearance = 0.3
+      const conservatorY = lidTop + radius + conservatorClearance
       const conservatorZ = 0
 
       // centro do cilindro deitado — destino do tubo de ligacao
-      const conservatorX = supportX + 0.35
+      const conservatorX = supportX + radius
 
       /*
        * Tubo de ligacao tanque -> conservador. A curva sobe da tampa e se
        * inclina ate o centro do cilindro; TubeGeometry a extruda como um duto
-       * de secao circular, dando o cotovelo arredondado da referencia.
-       * O ultimo ponto entra um pouco no cilindro para nao aparecer emenda.
+       * de secao circular, dando o cotovelo arredondado da referencia. Os
+       * pontos intermediarios sao cotados a partir da barriga do cilindro
+       * (conservatorY - radius), que fica sempre conservatorClearance acima da
+       * tampa — assim a curva continua monotona em qualquer variante. O ultimo
+       * ponto entra um pouco no cilindro para nao aparecer emenda.
        */
       const pipeCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(supportX, BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT, conservatorZ),
-        new THREE.Vector3(supportX, conservatorY - 0.55, conservatorZ),
-        new THREE.Vector3(conservatorX - 0.12, conservatorY - 0.35, conservatorZ),
+        new THREE.Vector3(supportX, lidTop, conservatorZ),
+        new THREE.Vector3(supportX, conservatorY - radius - 0.2, conservatorZ),
+        new THREE.Vector3(conservatorX - 0.12, conservatorY - radius, conservatorZ),
         new THREE.Vector3(conservatorX, conservatorY - radius + 0.06, conservatorZ),
       ])
       const pipe = new THREE.Mesh(
@@ -474,8 +778,6 @@ export default {
        * rente a tampa, flange circular achatada em cima dela e a coroa de
        * parafusos da flange.
        */
-      const lidTop = BASE_HEIGHT + TANK_HEIGHT + LID_HEIGHT
-
       const plateSize = 0.44
       const plateHeight = 0.08
       const basePlate = new THREE.Mesh(
@@ -495,8 +797,8 @@ export default {
       // deslocamento do par de vigas no eixo X — sobe este valor para leva-las
       // mais para a direita; a altura nao muda, seguem rentes a tampa
       const beamShiftX = 0.25
-      const beamStartX = TANK_WIDTH * 0.30 + beamShiftX
-      const beamEndX = TANK_WIDTH / 2 + 0.20 + beamShiftX
+      const beamStartX = dims.width * 0.30 + beamShiftX
+      const beamEndX = dims.width / 2 + 0.20 + beamShiftX
       const beamLength = beamEndX - beamStartX
       const beamBoltGeometry = new THREE.CylinderGeometry(0.014, 0.014, 0.018, 8)
       const boltSpreadX = 0.16
@@ -558,11 +860,11 @@ export default {
        * O Shape e desenhado no plano XY e o ExtrudeGeometry lhe da a
        * espessura em Z, a mesma das chapas.
        */
-      const cornerOut = beamEndX - TANK_WIDTH / 2
+      const cornerOut = beamEndX - dims.width / 2
       const cornerShape = new THREE.Shape()
       cornerShape.moveTo(0, 0)
       cornerShape.lineTo(cornerOut, 0)
-      cornerShape.lineTo(0, -BRACKET_DROP)
+      cornerShape.lineTo(0, -dims.bracketDrop)
       cornerShape.closePath()
       const cornerGeometry = new THREE.ExtrudeGeometry(cornerShape, {
         depth: braceThickness,
@@ -572,7 +874,7 @@ export default {
       ;[-1, 1].forEach((side) => {
         const corner = new THREE.Mesh(cornerGeometry, bodyMaterial)
         corner.position.set(
-          TANK_WIDTH / 2,
+          dims.width / 2,
           lidTop,
           side * beamZ - braceThickness / 2
         )
@@ -611,7 +913,8 @@ export default {
        * As duas extremidades sao iguais: tampa circular aparafusada em cada
        * ponta do cilindro, espelhadas pelo sinal de `end`.
        */
-      const capGeometry = new THREE.CylinderGeometry(radius * 1.06, radius * 1.06, 0.05, 24)
+      const capThickness = 0.05
+      const capGeometry = new THREE.CylinderGeometry(radius * 1.06, radius * 1.06, capThickness, 24)
       const boltGeometry = new THREE.CylinderGeometry(0.018, 0.018, 0.03, 8)
       const boltCount = 14
 
@@ -633,6 +936,27 @@ export default {
       })
 
       /*
+       * Termometro de oleo soldado no CENTRO da tampa da frente. Entra como
+       * filho do conservador para acompanhar qualquer mudanca de posicao ou de
+       * rotacao do cilindro.
+       *
+       * A tampa da frente e a de `end === -1`, em y local negativo: com o
+       * grupo deitado -90 graus em X, o -Y local aponta para o +Z do mundo, ou
+       * seja, a face virada para a camera. Girar o termometro +90 graus em X
+       * poe o mostrador olhando para fora dessa face e mantem o topo da escala
+       * para cima (as duas rotacoes se cancelam no mundo).
+       *
+       * O mostrador e desenhado sempre no tamanho da variante de referencia; a
+       * escala aqui o faz acompanhar o diametro do conservador de cada modelo,
+       * sem mexer no plano de contato (a chapa nasce em z = 0).
+       */
+      const thermometer = this.buildOilThermometer(bodyMaterial)
+      thermometer.rotation.x = Math.PI / 2
+      thermometer.position.y = -(length / 2 + capThickness / 2)
+      thermometer.scale.setScalar(radius / GAUGE_REFERENCE_CONSERVATOR_RADIUS)
+      conservator.add(thermometer)
+
+      /*
        * >>> ROTAÇÃO DO CONSERVADOR DE ÓLEO <<<
        * O cilindro nasce em pé (CylinderGeometry cresce no eixo Y). Girar -90°
        * em X deita o grupo inteiro (corpo, tampas e parafusos) sobre o eixo Z.
@@ -640,10 +964,186 @@ export default {
        *   rotation.x = -Math.PI / 2  -> deitado no eixo Z (atual)
        *   rotation.z = -Math.PI / 2  -> deitado no eixo X
        *   remover a linha            -> volta a ficar em pé no eixo Y
+       * O termômetro é filho do grupo e acompanha a mudança, mas o `rotation.x`
+       * dele (logo acima) é o que mantém o topo da escala para cima — trocar a
+       * rotação daqui exige recalcular a de lá.
        */
       conservator.rotation.x = -Math.PI / 2
       conservator.position.set(conservatorX, conservatorY, conservatorZ)
       group.add(conservator)
+
+      return group
+    },
+
+    /**
+     * Mostrador do termometro de oleo desenhado em canvas 2D e aplicado como
+     * textura no disco do relogio: escala de 0 a GAUGE_MAX_TEMP graus, faixa
+     * verde na regiao normal de operacao e vermelha acima do alarme.
+     *
+     * Desenhar a escala em canvas em vez de modelar tracos e numeros em
+     * geometria mantem o mostrador legivel com uma unica malha. A textura e
+     * unica e compartilhada pelos termometros das tres variantes.
+     */
+    createGaugeFaceTexture() {
+      const size = 512
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+
+      const ctx = canvas.getContext('2d')
+      // o centro do canvas e tambem o centro do mostrador e do eixo do ponteiro
+      const c = size / 2
+      const pointAt = (angle, radius) => [c + Math.cos(angle) * radius, c + Math.sin(angle) * radius]
+
+      // fundo creme do mostrador, do tipo esmaltado
+      ctx.fillStyle = '#F7F5F0'
+      ctx.beginPath()
+      ctx.arc(c, c, c, 0, Math.PI * 2)
+      ctx.fill()
+
+      // faixas de operacao: verde ate o alarme, vermelha dali para cima
+      ctx.lineWidth = c * 0.075
+      ;[
+        { from: 0, to: GAUGE_ALARM_TEMP, color: '#008242' },
+        { from: GAUGE_ALARM_TEMP, to: GAUGE_MAX_TEMP, color: '#B0332B' },
+      ].forEach((band) => {
+        ctx.strokeStyle = band.color
+        ctx.beginPath()
+        ctx.arc(c, c, c * 0.82, gaugeAngle(band.from), gaugeAngle(band.to))
+        ctx.stroke()
+      })
+
+      // tracos a cada 10 graus; os multiplos de 20 sao mais longos e numerados
+      ctx.strokeStyle = '#1F1F1F'
+      ctx.fillStyle = '#1F1F1F'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      for (let temp = 0; temp <= GAUGE_MAX_TEMP; temp += 10) {
+        const major = temp % 20 === 0
+        const angle = gaugeAngle(temp)
+        const outer = c * 0.72
+        const inner = outer - c * (major ? 0.13 : 0.07)
+
+        ctx.lineWidth = c * (major ? 0.024 : 0.014)
+        ctx.beginPath()
+        ctx.moveTo.apply(ctx, pointAt(angle, inner))
+        ctx.lineTo.apply(ctx, pointAt(angle, outer))
+        ctx.stroke()
+
+        if (!major) continue
+        ctx.font = '600 ' + Math.round(c * 0.15) + 'px Inter, Arial, sans-serif'
+        ctx.fillText.apply(ctx, [String(temp)].concat(pointAt(angle, c * 0.45)))
+      }
+
+      // legenda: unidade e grandeza medida, na abertura de baixo do mostrador
+      ctx.font = '700 ' + Math.round(c * 0.14) + 'px Inter, Arial, sans-serif'
+      ctx.fillText('°C', c, c * 1.24)
+      ctx.fillStyle = '#3D3D3D'
+      ctx.font = '600 ' + Math.round(c * 0.1) + 'px Inter, Arial, sans-serif'
+      ctx.fillText('ÓLEO', c, c * 1.52)
+
+      const texture = new THREE.CanvasTexture(canvas)
+      /*
+       * A face fica de esguelha na camera inicial, e sem filtragem
+       * anisotropica os numeros viram borrao nesse angulo.
+       */
+      texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy()
+      return texture
+    },
+
+    /**
+     * Termometro de oleo: mostrador redondo soldado na tampa do conservador.
+     * O cordao de solda (o torus rente a chapa) mais a chapa de base na mesma
+     * tinta do tanque sao o que da a leitura de peca soldada, e nao apenas
+     * apoiada.
+     *
+     * O grupo nasce com o eixo em +Z (mostrador virado para +Z, topo da escala
+     * em +Y) e as pecas empilhadas em Z a partir de z = 0, o plano de contato
+     * com a chapa. Quem monta gira e reescala o conjunto inteiro para a face
+     * escolhida.
+     */
+    buildOilThermometer(bodyMaterial) {
+      const group = new THREE.Group()
+
+      // CylinderGeometry cresce em Y; aqui as pecas sao empilhadas em Z
+      const alongZ = (mesh) => {
+        mesh.rotation.x = Math.PI / 2
+        return mesh
+      }
+
+      // cordao de solda: fosco e mais escuro que a tinta, como metal queimado
+      const weldMaterial = new THREE.MeshStandardMaterial({ color: 0xa2a8ad, metalness: 0.3, roughness: 0.85 })
+      const caseMaterial = new THREE.MeshStandardMaterial({ color: 0x9aa1a7, metalness: 0.6, roughness: 0.3 })
+      const faceMaterial = new THREE.MeshStandardMaterial({ map: this.gaugeFaceTexture, roughness: 0.8 })
+      const glassMaterial = new THREE.MeshStandardMaterial({
+        color: 0xeaf1f6,
+        metalness: 0.1,
+        roughness: 0.06,
+        transparent: true,
+        opacity: 0.22,
+      })
+      const needleMaterial = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, roughness: 0.45 })
+
+      const dialRadius = GAUGE_DIAL_RADIUS
+      const padRadius = dialRadius + 0.022
+      const padHeight = 0.022
+      const caseHeight = 0.05
+      // topo da caixa: onde mostrador, ponteiro, aro e vidro se empilham
+      const caseTop = padHeight + caseHeight
+
+      const pad = alongZ(
+        new THREE.Mesh(new THREE.CylinderGeometry(padRadius, padRadius, padHeight, 24), bodyMaterial)
+      )
+      pad.position.z = padHeight / 2
+      group.add(pad)
+
+      // metade do cordao fica dentro da chapa, o que deixa so o filete a mostra
+      const weld = new THREE.Mesh(new THREE.TorusGeometry(padRadius, 0.014, 8, 28), weldMaterial)
+      weld.position.z = 0.006
+      group.add(weld)
+
+      const body = alongZ(
+        new THREE.Mesh(new THREE.CylinderGeometry(dialRadius, dialRadius, caseHeight, 24), caseMaterial)
+      )
+      body.position.z = padHeight + caseHeight / 2
+      group.add(body)
+
+      const face = new THREE.Mesh(new THREE.CircleGeometry(dialRadius * 0.93, 32), faceMaterial)
+      face.position.z = caseTop - 0.001
+      group.add(face)
+
+      /*
+       * Ponteiro: nasce apontando para +Y e gira em torno de Z. A escala foi
+       * desenhada em angulo de canvas (Y para baixo, sentido horario), e a
+       * conversao para o angulo deste grupo e -(angulo + 90 graus).
+       */
+      const needle = new THREE.Group()
+      const needleLength = dialRadius * 0.66
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.008, needleLength, 0.004), needleMaterial)
+      blade.position.y = needleLength / 2
+      needle.add(blade)
+      // contrapeso do outro lado do eixo, como em ponteiro de manometro
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.026, 0.004), needleMaterial)
+      tail.position.y = -0.013
+      needle.add(tail)
+      needle.position.z = caseTop + 0.003
+      needle.rotation.z = -(gaugeAngle(GAUGE_READING) + Math.PI / 2)
+      group.add(needle)
+
+      const hub = alongZ(
+        new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 12), needleMaterial)
+      )
+      hub.position.z = caseTop + 0.006
+      group.add(hub)
+
+      const bezel = new THREE.Mesh(new THREE.TorusGeometry(dialRadius * 0.96, 0.011, 8, 28), caseMaterial)
+      bezel.position.z = caseTop + 0.002
+      group.add(bezel)
+
+      // vidro por ultimo: transparente, entao e desenhado depois dos opacos
+      const glass = new THREE.Mesh(new THREE.CircleGeometry(dialRadius * 0.93, 32), glassMaterial)
+      glass.position.z = caseTop + 0.009
+      group.add(glass)
 
       return group
     },
@@ -654,7 +1154,7 @@ export default {
      * vertical — como uma valvula gaveta de verdade. O ponto de saida fica
      * alem da ultima aleta em Z, entao o conjunto nao cruza com o radiador.
      */
-    buildValve(metalMaterial) {
+    buildValve(dims, metalMaterial) {
       const group = new THREE.Group()
       const redMaterial = new THREE.MeshStandardMaterial({
         color: 0xb0332b,
@@ -662,9 +1162,9 @@ export default {
         roughness: 0.5,
       })
 
-      const valveX = -TANK_WIDTH / 2 - 0.11
-      const valveY = BASE_HEIGHT + 0.18
-      const valveZ = TANK_DEPTH / 2 - 0.15
+      const valveX = -dims.width / 2 - 0.11
+      const valveY = dims.baseHeight + 0.18
+      const valveZ = dims.depth / 2 - 0.15
       const wheelRadius = 0.09
 
       // o cano corre em X: as pecas nascem com o eixo em Y e sao deitadas
@@ -682,7 +1182,7 @@ export default {
       const flange = lieAlongX(
         new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.03, 16), metalMaterial)
       )
-      flange.position.set(-TANK_WIDTH / 2 - 0.015, valveY, valveZ)
+      flange.position.set(-dims.width / 2 - 0.015, valveY, valveZ)
       group.add(flange)
 
       const valveBody = lieAlongX(
@@ -725,31 +1225,139 @@ export default {
       return group
     },
 
+    /**
+     * Põe uma variante em cena. Com `animate`, o anel do carrossel gira pelo
+     * caminho mais curto até trazer a variante escolhida à frente: a que sai
+     * percorre o arco para um lado e sai de quadro, a que entra chega pelo
+     * outro. Nenhuma das duas gira em torno de si — as duas só deslizam pelo
+     * arco. Sem animação (na montagem, ou com `prefers-reduced-motion`), o
+     * anel salta direto para a posição final.
+     *
+     * Durante o giro as DUAS variantes envolvidas ficam visíveis — é o que
+     * torna o movimento do anel legível; a terceira permanece apagada. Parado,
+     * só a selecionada continua em cena.
+     *
+     * O realce é sempre limpo ANTES da troca: os materiais tingidos pertencem
+     * ao modelo que está saindo e, depois de trocar, não haveria mais como
+     * encontrá-los para destingir.
+     */
+    selectModel(id, { animate } = {}) {
+      const index = this.models.findIndex((model) => model.id === id)
+      if (index < 0 || index === this.activeIndex) return
+
+      this.clearHighlight()
+      // troca pedida no meio de outra: conclui a anterior antes de comecar
+      if (this.spin) this.finishSpin()
+
+      const reduceMotion =
+        window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+      if (!animate || reduceMotion) {
+        this.setCarouselAngle(this.carouselAngleFor(index))
+        this.setActive(index)
+        this.showModels([index])
+        return
+      }
+
+      const fromAngle = this.carousel.rotation.y
+      this.spin = {
+        from: this.activeIndex,
+        to: index,
+        fromAngle,
+        delta: shortestTurn(fromAngle, this.carouselAngleFor(index)),
+        startedAt: performance.now(),
+      }
+      /*
+       * O modelo ativo passa a ser o escolhido desde o inicio do giro: e ele
+       * quem responde pelos cards e pelo realce quando o anel parar, e
+       * emitAnchors nao emite nada enquanto o giro acontece.
+       */
+      this.setActive(index)
+      this.showModels([this.spin.from, index])
+      this.$emit('switching', true)
+    },
+
+    /** Variante que responde pelos cards, pelo realce e pelas âncoras. */
+    setActive(index) {
+      this.activeIndex = index
+      // as ancoras da variante anterior nao valem mais para os cards
+      this.lastAnchors = ''
+    },
+
+    /** Só as variantes destes índices ficam em cena; as outras somem. */
+    showModels(indices) {
+      this.models.forEach((model, i) => {
+        model.group.visible = indices.indexOf(i) >= 0
+      })
+    },
+
+    /** Encerra o giro no estado final, sem esperar o resto do arco. */
+    finishSpin() {
+      const spin = this.spin
+      this.spin = null
+      if (!spin) return
+
+      // angulo exato da posicao de destino, para o encaixe nao acumular erro
+      this.setCarouselAngle(this.carouselAngleFor(spin.to))
+      this.setActive(spin.to)
+      this.showModels([spin.to])
+      this.$emit('switching', false)
+    },
+
+    /** Avança um quadro do giro do carrossel. */
+    updateCarousel() {
+      const spin = this.spin
+      if (!spin) return
+
+      const t = Math.min(1, (performance.now() - spin.startedAt) / CAROUSEL_DURATION)
+      if (t >= 1) {
+        this.finishSpin()
+        return
+      }
+
+      this.setCarouselAngle(spin.fromAngle + spin.delta * easeInOut(t))
+    },
+
     animate() {
       this.animationId = requestAnimationFrame(this.animate)
+      this.updateCarousel()
       this.controls.update()
       this.renderer.render(this.scene, this.camera)
       this.emitAnchors()
     },
 
     /**
-     * Projeta o centro de cada peça para coordenadas de tela (relativas à
-     * viewport) e avisa o pai, que usa esses pontos como destino das linhas de
-     * chamada dos cards. Só emite quando algo muda de fato, para não forçar
-     * re-render do SVG a 60fps com a cena parada.
+     * Projeta o centro de cada peça da variante ativa para coordenadas de
+     * pixel DENTRO do canvas e avisa o pai, que soma o deslocamento do palco e
+     * usa esses pontos como destino das linhas de chamada dos cards.
+     * Coordenadas relativas ao canvas (e não à viewport) não mudam quando a
+     * página rola, o que mantém os marcadores no lugar no layout empilhado de
+     * tablet.
+     *
+     * Só emite quando algo muda de fato, para não forçar re-render do SVG a
+     * 60fps com a cena parada — e não emite nada enquanto o carrossel gira, em
+     * que as peças varreriam a tela inteira sem informar nada.
      */
     emitAnchors() {
-      if (!this.parts.length) return
-      if (!this.canvasRect) this.canvasRect = this.$refs.container.getBoundingClientRect()
+      if (this.spin) return
 
-      const rect = this.canvasRect
+      const model = this.models[this.activeIndex]
+      if (!model || !model.parts.length) return
+
+      /*
+       * As ancoras estao no referencial da posicao do carrossel. Parado, a
+       * posicao da frente e o anel se cancelam exatamente (ver
+       * layoutCarousel), entao esse referencial e o do mundo. Enquanto gira
+       * nao chegamos aqui.
+       */
+      const { width, height } = this.canvasSize
       const projected = new THREE.Vector3()
-      const anchors = this.parts.map((part) => {
+      const anchors = model.parts.map((part) => {
         projected.copy(part.anchor).project(this.camera)
         return {
           id: part.id,
-          x: Math.round((projected.x * 0.5 + 0.5) * rect.width + rect.left),
-          y: Math.round((-projected.y * 0.5 + 0.5) * rect.height + rect.top),
+          x: Math.round((projected.x * 0.5 + 0.5) * width),
+          y: Math.round((-projected.y * 0.5 + 0.5) * height),
           visible: projected.z < 1,
         }
       })
@@ -760,11 +1368,13 @@ export default {
       this.$emit('anchors', anchors)
     },
 
-    /** Realça uma peça tingindo os materiais dela com a cor de destaque. */
+    /** Realça uma peça da variante ativa tingindo os materiais dela. */
     highlightPart(id) {
       if (this.highlightedId === id) return
       this.clearHighlight()
-      const part = this.parts.find((item) => item.id === id)
+
+      const model = this.models[this.activeIndex]
+      const part = model && model.parts.find((item) => item.id === id)
       if (!part) return
 
       /*
@@ -783,7 +1393,8 @@ export default {
 
     clearHighlight() {
       if (!this.highlightedId) return
-      const part = this.parts.find((item) => item.id === this.highlightedId)
+      const model = this.models[this.activeIndex]
+      const part = model && model.parts.find((item) => item.id === this.highlightedId)
       if (part) {
         part.object.traverse((object) => {
           if (object.userData.baseMaterial) {
@@ -808,10 +1419,15 @@ export default {
 
     onWindowResize() {
       const container = this.$refs.container
-      this.camera.aspect = container.clientWidth / container.clientHeight
+      const width = container.clientWidth
+      const height = container.clientHeight
+      // o palco pode estar oculto (celular) — dividir por zero quebra a matriz
+      if (!width || !height) return
+
+      this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()
-      this.renderer.setSize(container.clientWidth, container.clientHeight)
-      this.canvasRect = container.getBoundingClientRect()
+      this.renderer.setSize(width, height)
+      this.canvasSize = { width, height }
       this.lastAnchors = ''
     },
 
@@ -832,5 +1448,16 @@ export default {
 
 .viewer3d ::v-deep canvas {
   display: block;
+  /*
+   * Em tablet, sem isso o navegador pode roubar o gesto para rolar a página no
+   * meio de uma rotação do modelo.
+   */
+  touch-action: none;
+  outline: none;
+}
+
+.viewer3d ::v-deep canvas:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: -2px;
 }
 </style>
