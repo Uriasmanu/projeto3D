@@ -137,7 +137,7 @@ export default {
       register('buchas', this.buildBushingArray(porcelainMaterial, terminalMaterial),
         new THREE.Vector3(-TANK_WIDTH * 0.2, 0, 0))
       register('conservador', this.buildConservatorAssembly(bodyMaterial),
-        new THREE.Vector3(0, TANK_HEIGHT * 0.15, 0))
+        new THREE.Vector3(TANK_WIDTH * 0.11, TANK_HEIGHT * 0.15, 0))
       register('valvula', this.buildValve(darkMetalMaterial))
       register('aviso', this.buildWarningSign())
 
@@ -334,9 +334,53 @@ export default {
        */
       const lidTop = BASE_HEIGHT + TANK_HEIGHT + 0.06
 
-      const basePlate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.34), bodyMaterial)
-      basePlate.position.set(supportX, lidTop + 0.02, conservatorZ)
+      const plateSize = 0.44
+      const plateHeight = 0.08
+      const basePlate = new THREE.Mesh(
+        new THREE.BoxGeometry(plateSize, plateHeight, plateSize),
+        bodyMaterial
+      )
+      basePlate.position.set(supportX, lidTop + plateHeight / 2, conservatorZ)
       group.add(basePlate)
+
+      /*
+       * Duas vigas rentes a tampa, uma de cada lado da chapa quadrada e cada
+       * uma junto a sua borda da tampa, correndo no eixo X ate a ponta direita
+       * do transformador. Na extremidade esquerda de cada viga vao 4 parafusos
+       * em 2x2 — o desenho da face 4 do dado.
+       */
+      const beamWidth = 0.3
+      const beamStartX = TANK_WIDTH * 0.15
+      const beamEndX = TANK_WIDTH / 2 + 0.04
+      const beamLength = beamEndX - beamStartX
+      const beamZ = TANK_DEPTH / 2 - beamWidth * 0.75
+      const beamBoltGeometry = new THREE.CylinderGeometry(0.014, 0.014, 0.018, 8)
+      const boltSpreadX = 0.16
+      const boltSpreadZ = beamWidth * 0.45
+
+      ;[-1, 1].forEach((side) => {
+        const z = side * beamZ
+
+        const beam = new THREE.Mesh(
+          new THREE.BoxGeometry(beamLength, plateHeight, beamWidth),
+          bodyMaterial
+        )
+        beam.position.set((beamStartX + beamEndX) / 2, lidTop + plateHeight / 2, z)
+        group.add(beam)
+
+        const boltCenterX = beamStartX + 0.16
+        ;[-1, 1].forEach((dx) => {
+          ;[-1, 1].forEach((dz) => {
+            const bolt = new THREE.Mesh(beamBoltGeometry, bodyMaterial)
+            bolt.position.set(
+              boltCenterX + (dx * boltSpreadX) / 2,
+              lidTop + plateHeight + 0.009,
+              z + (dz * boltSpreadZ) / 2
+            )
+            group.add(bolt)
+          })
+        })
+      })
 
       const flangeHeight = 0.03
       const flangeRadius = 0.13
@@ -344,7 +388,7 @@ export default {
         new THREE.CylinderGeometry(flangeRadius, flangeRadius, flangeHeight, 20),
         bodyMaterial
       )
-      const flangeY = lidTop + 0.04 + flangeHeight / 2
+      const flangeY = lidTop + plateHeight + flangeHeight / 2
       flange.position.set(supportX, flangeY, conservatorZ)
       group.add(flange)
 
