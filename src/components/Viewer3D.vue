@@ -127,7 +127,7 @@ export default {
         this.parts.push({ id, object, offset: offset || null, anchor: new THREE.Vector3() })
       }
 
-      register('base', this.buildBaseRails(darkMetalMaterial))
+      register('base', this.buildBaseRails(bodyMaterial))
       register('tanque', this.buildTankBody(bodyMaterial),
         new THREE.Vector3(TANK_WIDTH * 0.3, -TANK_HEIGHT * 0.15, TANK_DEPTH * 0.5))
       register('radiadores', this.buildRadiatorFins(finMaterial),
@@ -160,12 +160,18 @@ export default {
       })
     },
 
+    /**
+     * Duas vigas do skid atravessando o tanque no sentido frente/fundo (eixo Z),
+     * recuadas das pontas e sobrando para fora das duas faces, como na imagem
+     * de referência. Usam o cinza do corpo — na referência o skid é pintado
+     * junto com o tanque, não é metal escuro.
+     */
     buildBaseRails(material) {
       const group = new THREE.Group()
-      const railGeometry = new THREE.BoxGeometry(TANK_WIDTH + 0.5, BASE_HEIGHT, 0.22)
+      const railGeometry = new THREE.BoxGeometry(0.22, BASE_HEIGHT, TANK_DEPTH + 0.7)
       ;[-1, 1].forEach((side) => {
         const rail = new THREE.Mesh(railGeometry, material)
-        rail.position.set(0, BASE_HEIGHT / 2, (side * (TANK_DEPTH - 0.3)) / 2)
+        rail.position.set(side * TANK_WIDTH * 0.3, BASE_HEIGHT / 2, 0)
         group.add(rail)
       })
       return group
@@ -306,11 +312,6 @@ export default {
       )
       support.position.set(supportX, (BASE_HEIGHT + TANK_HEIGHT + conservatorY) / 2, conservatorZ)
       group.add(support)
-
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 8), darkMetalMaterial)
-      pipe.position.set(supportX, BASE_HEIGHT + TANK_HEIGHT + 0.25, TANK_DEPTH / 2 - 0.05)
-      pipe.rotation.z = Math.PI / 10
-      group.add(pipe)
 
       const conservator = new THREE.Group()
       const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 24), bodyMaterial)
