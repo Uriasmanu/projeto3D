@@ -11,6 +11,8 @@ const TANK_HEIGHT = 1.8 // Y
 const TANK_DEPTH = 1.7 // Z
 const BASE_HEIGHT = 0.15
 const TANK_CENTER_Y = BASE_HEIGHT + TANK_HEIGHT / 2
+// nome do filho que recebe o realce sozinho, quando a peca tem estrutura de apoio
+const HIGHLIGHT_TARGET = 'highlight'
 
 export default {
   name: 'Viewer3D',
@@ -303,8 +305,8 @@ export default {
       const radius = 0.32
       const length = 1.5
       const supportX = TANK_WIDTH / 2 - 0.4
-      const conservatorY = BASE_HEIGHT + TANK_HEIGHT + 0.95
-      const conservatorZ = 0
+      const conservatorY = BASE_HEIGHT + TANK_HEIGHT + 0.75
+      const conservatorZ = -0.1
 
       // centro do cilindro deitado — destino do tubo de ligacao
       const conservatorX = supportX + 0.35
@@ -434,6 +436,7 @@ export default {
       }
 
       const conservator = new THREE.Group()
+      conservator.name = HIGHLIGHT_TARGET
       const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 24), bodyMaterial)
       conservator.add(body)
 
@@ -546,7 +549,13 @@ export default {
       const part = this.parts.find((item) => item.id === id)
       if (!part) return
 
-      part.object.traverse((object) => {
+      /*
+       * Peca composta pode marcar o filho que representa o "corpo" dela com o
+       * nome HIGHLIGHT_TARGET; so ele acende. Sem essa marca, acende o grupo
+       * inteiro, que e o caso das demais pecas.
+       */
+      const target = part.object.getObjectByName(HIGHLIGHT_TARGET) || part.object
+      target.traverse((object) => {
         if (!object.isMesh) return
         object.userData.baseMaterial = object.material
         object.material = this.getHighlightMaterial(object.material)
