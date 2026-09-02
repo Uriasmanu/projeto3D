@@ -302,11 +302,17 @@ export default {
 
     buildConservatorAssembly(bodyMaterial) {
       const group = new THREE.Group()
-      const radius = 0.32
+      const radius = 0.35
       const length = 1.5
-      const supportX = TANK_WIDTH / 2 - 0.4
+      /*
+       * Deslocamento do conjunto (chapa de base, flange, tubo e cilindro) para
+       * a direita. supportX alimenta as tres primeiras e conservatorX deriva
+       * dele, entao mexer aqui move tudo junto.
+       */
+      const assemblyShiftX = 0.24
+      const supportX = TANK_WIDTH / 2 - 0.4 + assemblyShiftX
       const conservatorY = BASE_HEIGHT + TANK_HEIGHT + 0.75
-      const conservatorZ = -0.1
+      const conservatorZ = 0
 
       // centro do cilindro deitado — destino do tubo de ligacao
       const conservatorX = supportX + 0.35
