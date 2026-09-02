@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
 const TANK_WIDTH = 3.2 // X
-const TANK_HEIGHT = 1.2 // Y
+const TANK_HEIGHT = 1.8 // Y
 const TANK_DEPTH = 1.7 // Z
 const BASE_HEIGHT = 0.15
 const TANK_CENTER_Y = BASE_HEIGHT + TANK_HEIGHT / 2
