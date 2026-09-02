@@ -350,8 +350,12 @@ export default {
        * em 2x2 — o desenho da face 4 do dado.
        */
       const beamWidth = 0.3
-      const beamStartX = TANK_WIDTH * 0.15
-      const beamEndX = TANK_WIDTH / 2 + 0.04
+      const beamHeight = 0.04
+      // deslocamento do par de vigas no eixo X — sobe este valor para leva-las
+      // mais para a direita; a altura nao muda, seguem rentes a tampa
+      const beamShiftX = 0.25
+      const beamStartX = TANK_WIDTH * 0.30 + beamShiftX
+      const beamEndX = TANK_WIDTH / 2 + 0.20 + beamShiftX
       const beamLength = beamEndX - beamStartX
       const beamZ = TANK_DEPTH / 2 - beamWidth * 0.75
       const beamBoltGeometry = new THREE.CylinderGeometry(0.014, 0.014, 0.018, 8)
@@ -362,10 +366,10 @@ export default {
         const z = side * beamZ
 
         const beam = new THREE.Mesh(
-          new THREE.BoxGeometry(beamLength, plateHeight, beamWidth),
+          new THREE.BoxGeometry(beamLength, beamHeight, beamWidth),
           bodyMaterial
         )
-        beam.position.set((beamStartX + beamEndX) / 2, lidTop + plateHeight / 2, z)
+        beam.position.set((beamStartX + beamEndX) / 2, lidTop + beamHeight / 2, z)
         group.add(beam)
 
         const boltCenterX = beamStartX + 0.16
@@ -374,7 +378,7 @@ export default {
             const bolt = new THREE.Mesh(beamBoltGeometry, bodyMaterial)
             bolt.position.set(
               boltCenterX + (dx * boltSpreadX) / 2,
-              lidTop + plateHeight + 0.009,
+              lidTop + beamHeight + 0.009,
               z + (dz * boltSpreadZ) / 2
             )
             group.add(bolt)
