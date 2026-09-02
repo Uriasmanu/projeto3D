@@ -206,7 +206,7 @@ export default {
        */
       const finHeight = TANK_HEIGHT * 0.8
       const finY = TANK_CENTER_Y
-      const finDepth = 0.16
+      const finDepth = 0.22
       const finThickness = 0.035
 
       // faces longas (frente e fundo): o sinal de `face` espelha o Z
@@ -255,16 +255,34 @@ export default {
       lid.position.y = lidY + LID_HEIGHT / 2
       group.add(lid)
 
+      /*
+       * Parafusos nas quatro bordas. Os das laterais curtas usam o mesmo passo
+       * das bordas longas e pulam o primeiro e o ultimo, senao repetiriam os
+       * parafusos de canto que os lados longos ja colocaram.
+       */
       const boltGeometry = new THREE.CylinderGeometry(0.018, 0.018, 0.03, 8)
       const boltsPerSide = 10
       const halfW = TANK_WIDTH / 2
       const halfD = TANK_DEPTH / 2
+      const boltY = lidY + LID_HEIGHT + 0.01
+      const boltStep = TANK_WIDTH / (boltsPerSide - 1)
+      const boltsPerEnd = Math.round(TANK_DEPTH / boltStep) + 1
+
+      for (let i = 1; i < boltsPerEnd - 1; i += 1) {
+        const z = -halfD + (i / (boltsPerEnd - 1)) * TANK_DEPTH
+        ;[-halfW, halfW].forEach((x) => {
+          const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
+          bolt.position.set(x, boltY, z)
+          group.add(bolt)
+        })
+      }
+
       for (let i = 0; i < boltsPerSide; i += 1) {
         const t = i / (boltsPerSide - 1)
         const x = -halfW + t * TANK_WIDTH
         ;[-halfD, halfD].forEach((z) => {
           const bolt = new THREE.Mesh(boltGeometry, bodyMaterial)
-          bolt.position.set(x, lidY + LID_HEIGHT + 0.01, z)
+          bolt.position.set(x, boltY, z)
           group.add(bolt)
         })
       }
